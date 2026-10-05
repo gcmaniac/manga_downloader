@@ -14,13 +14,14 @@ if exist "%DIST_DIR%" rd /s /q "%DIST_DIR%"
 mkdir "%DIST_DIR%"
 
 copy /y "%~dp0manga_downloader.exe" "%DIST_DIR%\"
+if exist "%~dp0manga_downloader_standalone.exe" copy /y "%~dp0manga_downloader_standalone.exe" "%DIST_DIR%\"
 copy /y "%~dp0LICENSE" "%DIST_DIR%\"
 if exist "%~dp0manga_downloader.db" copy /y "%~dp0manga_downloader.db" "%DIST_DIR%\"
 
 set "BIN=E:\msys64\mingw64\bin"
 
 rem Copy required DLLs for standalone execution
-set DLL_LIST=libcurl-4.dll libsqlite3-0.dll libcjson-1.dll zlib1.dll libssl-3-x64.dll libcrypto-3-x64.dll libbrotlidec.dll libbrotlicommon.dll libidn2-0.dll libnghttp2-14.dll libnghttp3-9.dll libngtcp2-16.dll libngtcp2_crypto_ossl-0.dll libpsl-5.dll libssh2-1.dll libzstd.dll libiconv-2.dll libunistring-5.dll
+set DLL_LIST=libcurl-4.dll libsqlite3-0.dll libcjson-1.dll zlib1.dll libssl-3-x64.dll libcrypto-3-x64.dll libbrotlidec.dll libbrotlicommon.dll libidn2-0.dll libintl-8.dll libnghttp2-14.dll libnghttp3-9.dll libngtcp2-16.dll libngtcp2_crypto_ossl-0.dll libpsl-5.dll libssh2-1.dll libzstd.dll libiconv-2.dll libunistring-5.dll
 
 for %%f in (%DLL_LIST%) do (
     if exist "%BIN%\%%f" (
