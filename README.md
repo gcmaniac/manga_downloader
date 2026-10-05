@@ -16,6 +16,8 @@
   </p>
 
   <p align="center">
+    <a href="https://github.com/gcmaniac/manga_downloader"><img src="https://img.shields.io/badge/Author-gcmaniac-orange?style=for-the-badge&logo=github" alt="Author gcmaniac" /></a>
+    <a href="https://github.com/gcmaniac/manga_downloader/stargazers"><img src="https://img.shields.io/github/stars/gcmaniac/manga_downloader?style=for-the-badge&logo=github&color=ff69b4" alt="GitHub Stars" /></a>
     <a href="#-fitur-utama"><img src="https://img.shields.io/badge/Status-Active_Production-brightgreen?style=for-the-badge&logo=visual-studio-code" alt="Status" /></a>
     <a href="#-spesifikasi-teknologi"><img src="https://img.shields.io/badge/Language-C99_Win32-00599C?style=for-the-badge&logo=c" alt="Language" /></a>
     <a href="#-spesifikasi-teknologi"><img src="https://img.shields.io/badge/Network-libcurl-blue?style=for-the-badge&logo=curl" alt="libcurl" /></a>
@@ -118,7 +120,7 @@ flowchart TD
 ## 🚀 User Guide / Panduan Penggunaan
 
 ### 1. Menjalankan Aplikasi
-* Unduh rilis portabel dari menu [Releases](https://github.com) atau hasilkan paket sendiri menggunakan `package.bat`.
+* Unduh rilis portabel dari menu [Releases](https://github.com/gcmaniac/manga_downloader/releases) atau hasilkan paket sendiri menggunakan `package.bat`.
 * Ekstrak file `manga_downloader_portable.zip`.
 * Buka file executable `manga_downloader.exe`.
 
@@ -178,7 +180,7 @@ Bagi Anda yang ingin memodifikasi atau mengompilasi kode program sendiri di ling
 
 1. Clone repositori ini:
    ```bash
-   git clone https://github.com/username/manga_downloader.git
+   git clone https://github.com/gcmaniac/manga_downloader.git
    cd manga_downloader
    ```
 
@@ -216,7 +218,7 @@ Kami sangat membuka pintu selebar-lebarnya bagi siapa saja—baik pemula, antusi
 - [ ] **Lokalisasi Bahasa**: Dukungan multi-bahasa (Bahasa Indonesia, English, 日本語) pada antarmuka GUI.
 
 ### 🛠️ Alur Mengirimkan Kontribusi (Pull Request):
-1. **Fork** repositori ini ke akun GitHub Anda.
+1. **[Fork](https://github.com/gcmaniac/manga_downloader/fork)** repositori ini ke akun GitHub Anda.
 2. Buat branch fitur baru yang deskriptif:
    ```bash
    git checkout -b fitur/tambah-scraper-web-baru
@@ -233,9 +235,9 @@ Kami sangat membuka pintu selebar-lebarnya bagi siapa saja—baik pemula, antusi
    ```bash
    git push origin fitur/tambah-scraper-web-baru
    ```
-6. Buka **Pull Request** di GitHub dan jelaskan fitur atau perbaikan yang Anda tawarkan. Kami akan meninjau dan menggabungkannya dengan senang hati!
+6. Buka **[Pull Request](https://github.com/gcmaniac/manga_downloader/pulls)** di GitHub dan jelaskan fitur atau perbaikan yang Anda tawarkan. Kami akan meninjau dan menggabungkannya dengan senang hati!
 
-Jika Anda menemukan bug atau memiliki ide perbaikan, jangan ragu untuk membuka [Issue Baru di GitHub](https://github.com)!
+Jika Anda menemukan bug atau memiliki ide perbaikan, jangan ragu untuk membuka **[Issue Baru di GitHub](https://github.com/gcmaniac/manga_downloader/issues)**!
 
 ---
 
@@ -252,6 +254,6 @@ Projek ini dirilis di bawah naungan **[MIT License](LICENSE)**. Anda bebas mengg
 ---
 
 <div align="center">
-  <sub>Dibangun dengan ❤️ dan dedikasi oleh komunitas pecinta Manga & Open Source.</sub><br/>
-  <b>⭐ Jangan lupa berikan Star di GitHub jika aplikasi ini bermanfaat untuk Anda! ⭐</b>
+  <sub>Dibangun dengan ❤️ dan dedikasi oleh <a href="https://github.com/gcmaniac"><b>gcmaniac</b></a> bersama komunitas pecinta Manga & Open Source.</sub><br/><br/>
+  <b>⭐ Jangan lupa berikan <a href="https://github.com/gcmaniac/manga_downloader">Star di GitHub</a> jika aplikasi ini bermanfaat untuk Anda! ⭐</b>
 </div>

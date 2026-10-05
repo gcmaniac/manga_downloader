@@ -1,0 +1,57 @@
+# ==========================================
+# C / MinGW Build Artifacts & Binaries
+# ==========================================
+*.o
+*.obj
+*.exe
+*.dll
+*.so
+*.dylib
+*.a
+*.lib
+resources.o
+manga_downloader.exe
+
+# Build & Portable Distribution Packages
+dist/
+build/
+bin/
+*.zip
+
+# ==========================================
+# Database & Temporary SQLite Files
+# ==========================================
+manga_downloader.db
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+
+# ==========================================
+# Runtime Download Directory & Scrape Cache
+# ==========================================
+downloads/
+sample_manga.html
+*.log
+*.tmp
+
+# ==========================================
+# Python Cache (Scripts init_db & icon)
+# ==========================================
+__pycache__/
+*.py[cod]
+*$py.class
+
+# ==========================================
+# IDE & Editor Configurations
+# ==========================================
+.kilo/
+.vscode/
+.vs/
+.idea/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
