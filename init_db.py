@@ -3,7 +3,7 @@ import urllib.request
 import json
 import os
 
-db_path = r'e:\media_tools\manga_downloader\manga_downloader.db'
+db_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'manga_downloader.db')
 
 print("Fetching all models from OpenRouter (sorted by intelligence)...")
 url = 'https://openrouter.ai/api/v1/models?sort=intelligence-high-to-low'

@@ -25,8 +25,7 @@
 #define ID_ONLY_MISSING_CHK     111
 #define ID_MAIN_TAB             150
 
-#define MAX_CHAPTERS            5000
-#define MAX_PAGES               1000
+#include "scrapers/scrapers.h"
 
 #define DL_SUCCESS              0
 #define DL_SKIPPED              10
@@ -34,21 +33,6 @@
 #define DL_ERR_INIT             1
 #define DL_ERR_FILE             2
 #define DL_ERR_PERFORM          3
-
-typedef enum {
-    SITE_UNKNOWN = 0,
-    SITE_MGEKO,         // mgeko.cc, mangageko.com
-    SITE_MANGANATO,     // manganato.com, chapmanganato.to, mangakakalot.com
-    SITE_ASURA,         // asuracomic.net, asurascans.com, asura.gg
-    SITE_FLAME,         // flamecomics.xyz, flamecomics.me
-    SITE_GENERIC        // Universal fallback
-} SiteType;
-
-typedef struct {
-    char url[1024];
-    char name[256];
-    int chapter_num;
-} ChapterItem;
 
 typedef struct {
     char *memory;
@@ -129,7 +113,7 @@ static void append_log(const char *msg) {
     SendMessageW(hLogEdit, EM_SCROLLCARET, 0, 0);
 }
 
-static void get_base_host(const char *url, char *host_out, size_t max_len) {
+void get_base_host(const char *url, char *host_out, size_t max_len) {
     host_out[0] = '\0';
     const char *p = strstr(url, "://");
     if (!p) return;
@@ -139,45 +123,6 @@ static void get_base_host(const char *url, char *host_out, size_t max_len) {
     if (len >= max_len) len = max_len - 1;
     memcpy(host_out, url, len);
     host_out[len] = '\0';
-}
-
-static SiteType detect_site_from_url(const char *url, char *site_name_out, size_t max_len) {
-    char low[1024];
-    size_t ulen = strlen(url);
-    if (ulen >= sizeof(low)) ulen = sizeof(low) - 1;
-    for (size_t i = 0; i < ulen; i++) low[i] = (char)tolower((unsigned char)url[i]);
-    low[ulen] = '\0';
-
-    if (strstr(low, "mgeko.cc") != NULL || strstr(low, "mangageko.com") != NULL) {
-        if (site_name_out) snprintf(site_name_out, max_len, "MangaGeko (mgeko.cc)");
-        return SITE_MGEKO;
-    }
-    if (strstr(low, "manganato.com") != NULL || strstr(low, "chapmanganato.to") != NULL ||
-        strstr(low, "mangakakalot.com") != NULL || strstr(low, "manganelo.com") != NULL) {
-        if (site_name_out) snprintf(site_name_out, max_len, "MangaNato / MangaKakalot");
-        return SITE_MANGANATO;
-    }
-    if (strstr(low, "asuracomic.net") != NULL || strstr(low, "asurascans.com") != NULL ||
-        strstr(low, "asura.gg") != NULL) {
-        if (site_name_out) snprintf(site_name_out, max_len, "Asura Scans");
-        return SITE_ASURA;
-    }
-    if (strstr(low, "flamecomics.xyz") != NULL || strstr(low, "flamecomics.me") != NULL) {
-        if (site_name_out) snprintf(site_name_out, max_len, "Flame Comics");
-        return SITE_FLAME;
-    }
-
-    char host[256] = "";
-    get_base_host(url, host, sizeof(host));
-    if (host[0] != '\0') {
-        const char *hname = strstr(host, "://");
-        hname = hname ? (hname + 3) : host;
-        if (site_name_out) snprintf(site_name_out, max_len, "%s", hname);
-        return SITE_GENERIC;
-    }
-
-    if (site_name_out) snprintf(site_name_out, max_len, "Belum terdeteksi");
-    return SITE_UNKNOWN;
 }
 
 static void update_site_status_ui(void) {
@@ -192,22 +137,12 @@ static void update_site_status_ui(void) {
     char url_a[1024];
     WideCharToMultiByte(CP_UTF8, 0, url_w, -1, url_a, 1024, NULL, NULL);
 
-    char site_name[256] = "";
-    SiteType type = detect_site_from_url(url_a, site_name, sizeof(site_name));
-
+    const Scraper *scraper = find_scraper(url_a);
     wchar_t status_msg[512];
-    if (type == SITE_MGEKO) {
-        _snwprintf(status_msg, 512, L"Status Web: MangaGeko (mgeko.cc)  |  Scraper: MangaGeko Engine [Didukung]");
-    } else if (type == SITE_MANGANATO) {
-        _snwprintf(status_msg, 512, L"Status Web: MangaNato / MangaKakalot  |  Scraper: MangaNato Engine [Didukung]");
-    } else if (type == SITE_ASURA) {
-        _snwprintf(status_msg, 512, L"Status Web: Asura Scans  |  Scraper: Asura Scans Engine [Didukung]");
-    } else if (type == SITE_FLAME) {
-        _snwprintf(status_msg, 512, L"Status Web: Flame Comics  |  Scraper: Flame Comics Engine [Didukung]");
-    } else if (type == SITE_GENERIC) {
+    if (scraper) {
         wchar_t sname_w[256];
-        MultiByteToWideChar(CP_UTF8, 0, site_name, -1, sname_w, 256);
-        _snwprintf(status_msg, 512, L"Status Web: %s  |  Scraper: Universal Heuristic Engine", sname_w);
+        MultiByteToWideChar(CP_UTF8, 0, scraper->display_name, -1, sname_w, 256);
+        _snwprintf(status_msg, 512, L"Status Web: %s  |  Scraper: %s [Didukung]", sname_w, sname_w);
     } else {
         _snwprintf(status_msg, 512, L"Status Web: Format URL belum dikenali");
     }
@@ -215,41 +150,108 @@ static void update_site_status_ui(void) {
     SetWindowTextW(hSiteStatus, status_msg);
 }
 
-static char *fetch_url(const char *url, const char *referer) {
-    CURL *curl = curl_easy_init();
-    if (!curl) return NULL;
+char *fetch_url(const char *url, const char *referer) {
+    if (!url || url[0] == '\0') return NULL;
 
-    MemoryStruct chunk = { malloc(1), 0 };
-    if (!chunk.memory) {
+    char cookie_path[MAX_PATH];
+    wchar_t exePath[MAX_PATH];
+    GetModuleFileNameW(NULL, exePath, MAX_PATH);
+    wchar_t *p_slash = wcsrchr(exePath, L'\\');
+    if (p_slash) *(p_slash + 1) = L'\0';
+    wcscat(exePath, L"cookies.txt");
+    WideCharToMultiByte(CP_UTF8, 0, exePath, -1, cookie_path, MAX_PATH, NULL, NULL);
+
+    int max_retries = 2;
+    for (int attempt = 1; attempt <= max_retries; attempt++) {
+        CURL *curl = curl_easy_init();
+        if (!curl) return NULL;
+
+        MemoryStruct chunk = { malloc(1), 0 };
+        if (!chunk.memory) {
+            curl_easy_cleanup(curl);
+            return NULL;
+        }
+        chunk.memory[0] = '\0';
+
+        curl_easy_setopt(curl, CURLOPT_URL, url);
+        curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_memory_cb);
+        curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void *)&chunk);
+        curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
+        curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
+        curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 0L);
+        curl_easy_setopt(curl, CURLOPT_TIMEOUT, 30L);
+        curl_easy_setopt(curl, CURLOPT_ACCEPT_ENCODING, ""); // Auto decompress gzip/deflate/br/zstd
+
+        // Persistent cookie support (critical for Cloudflare session preservation)
+        curl_easy_setopt(curl, CURLOPT_COOKIEFILE, cookie_path);
+        curl_easy_setopt(curl, CURLOPT_COOKIEJAR, cookie_path);
+
+        struct curl_slist *headers = NULL;
+        headers = curl_slist_append(headers, "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36");
+        headers = curl_slist_append(headers, "Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8");
+        headers = curl_slist_append(headers, "Accept-Language: en-US,en;q=0.9,id;q=0.8");
+        headers = curl_slist_append(headers, "sec-ch-ua: \"Chromium\";v=\"124\", \"Google Chrome\";v=\"124\", \"Not-A.Brand\";v=\"99\"");
+        headers = curl_slist_append(headers, "sec-ch-ua-mobile: ?0");
+        headers = curl_slist_append(headers, "sec-ch-ua-platform: \"Windows\"");
+        headers = curl_slist_append(headers, "sec-fetch-dest: document");
+        headers = curl_slist_append(headers, "sec-fetch-mode: navigate");
+        headers = curl_slist_append(headers, "sec-fetch-site: same-origin");
+        headers = curl_slist_append(headers, "upgrade-insecure-requests: 1");
+
+        if (referer && referer[0] != '\0') {
+            curl_easy_setopt(curl, CURLOPT_REFERER, referer);
+        }
+        curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
+
+        CURLcode res = curl_easy_perform(curl);
+
+        long http_code = 0;
+        curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
+
+        curl_slist_free_all(headers);
         curl_easy_cleanup(curl);
-        return NULL;
-    }
-    chunk.memory[0] = '\0';
 
-    curl_easy_setopt(curl, CURLOPT_URL, url);
-    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_memory_cb);
-    curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void *)&chunk);
-    curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
-    curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
-    curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 0L);
-    curl_easy_setopt(curl, CURLOPT_TIMEOUT, 30L);
-    curl_easy_setopt(curl, CURLOPT_USERAGENT, "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
+        if (res == CURLE_OK && chunk.memory) {
+            bool is_cf_challenge = false;
+            if (http_code == 403 || http_code == 503) {
+                if (strstr(chunk.memory, "cf-turnstile") != NULL ||
+                    strstr(chunk.memory, "Just a moment...") != NULL ||
+                    strstr(chunk.memory, "challenge-platform") != NULL ||
+                    strstr(chunk.memory, "Cloudflare") != NULL) {
+                    is_cf_challenge = true;
+                }
+            }
 
-    if (referer && referer[0] != '\0') {
-        curl_easy_setopt(curl, CURLOPT_REFERER, referer);
-    }
+            if (is_cf_challenge) {
+                char cf_log[512];
+                snprintf(cf_log, sizeof(cf_log),
+                         "[Cloudflare] Peringatan: Halaman terproteksi Cloudflare Challenge (HTTP %ld). Percobaan %d/%d...",
+                         http_code, attempt, max_retries);
+                append_log(cf_log);
 
-    CURLcode res = curl_easy_perform(curl);
-    curl_easy_cleanup(curl);
+                if (attempt < max_retries) {
+                    free(chunk.memory);
+                    Sleep(1500);
+                    continue;
+                }
+            } else if (http_code == 200) {
+                if (strstr(chunk.memory, "cf-ray") != NULL || strstr(chunk.memory, "cloudflare") != NULL) {
+                    append_log("[Cloudflare] Berhasil melewati Cloudflare (HTTP 200 OK via Browser Headers & Cookie Sync).");
+                }
+            }
 
-    if (res != CURLE_OK) {
+            return chunk.memory;
+        }
+
         free(chunk.memory);
-        return NULL;
+        if (attempt < max_retries) Sleep(1000);
     }
-    return chunk.memory;
+
+    return NULL;
 }
 
-static void resolve_url(const char *base_host, const char *raw_url, char *out_url, size_t max_len) {
+
+void resolve_url(const char *base_host, const char *raw_url, char *out_url, size_t max_len) {
     if (strncmp(raw_url, "http://", 7) == 0 || strncmp(raw_url, "https://", 8) == 0) {
         snprintf(out_url, max_len, "%s", raw_url);
     } else if (strncmp(raw_url, "//", 2) == 0) {
@@ -261,7 +263,7 @@ static void resolve_url(const char *base_host, const char *raw_url, char *out_ur
     }
 }
 
-static void sanitize_filename(char *name) {
+void sanitize_filename(char *name) {
     for (size_t i = 0; name[i] != '\0'; i++) {
         char c = name[i];
         if (c == '\\' || c == '/' || c == ':' || c == '*' || c == '?' || c == '"' || c == '<' || c == '>' || c == '|' || c == '\r' || c == '\n') {
@@ -274,7 +276,7 @@ static void sanitize_filename(char *name) {
     }
 }
 
-static void trim_whitespace(char *str) {
+void trim_whitespace(char *str) {
     char *p = str;
     while (isspace((unsigned char)*p)) p++;
     if (p != str) memmove(str, p, strlen(p) + 1);
@@ -366,31 +368,55 @@ static bool is_chapter_selected(int chapter_num, int chapter_index_1based, const
     return false;
 }
 
-// Checks if a chapter already has a folder on disk containing images
-static bool is_chapter_already_downloaded(const char *target_root, const char *chapter_name, int chapter_num) {
-    char chapter_dir[1024];
-    snprintf(chapter_dir, sizeof(chapter_dir), "%s\\%s", target_root, chapter_name);
+int extract_chapter_number_from_string(const char *str) {
+    if (!str || str[0] == '\0') return -1;
 
-    DWORD attr = GetFileAttributesA(chapter_dir);
-    if (attr == INVALID_FILE_ATTRIBUTES || !(attr & FILE_ATTRIBUTE_DIRECTORY)) {
-        // Also check if alternative folder named "Chapter <num>" exists
-        if (chapter_num > 0) {
-            char alt_dir[1024];
-            snprintf(alt_dir, sizeof(alt_dir), "%s\\Chapter %d", target_root, chapter_num);
-            attr = GetFileAttributesA(alt_dir);
-            if (attr != INVALID_FILE_ATTRIBUTES && (attr & FILE_ATTRIBUTE_DIRECTORY)) {
-                snprintf(chapter_dir, sizeof(chapter_dir), "%s", alt_dir);
-            } else {
-                return false;
-            }
-        } else {
-            return false;
+    char low[512];
+    size_t len = strlen(str);
+    if (len >= sizeof(low)) len = sizeof(low) - 1;
+    for (size_t i = 0; i < len; i++) low[i] = (char)tolower((unsigned char)str[i]);
+    low[len] = '\0';
+
+    // 1. Look for "chapter", "chap", "ch.", "ch-", "ch ", "ch_"
+    const char *p = strstr(low, "chapter");
+    if (!p) p = strstr(low, "chap");
+    if (!p) p = strstr(low, "ch.");
+    if (!p) p = strstr(low, "ch ");
+    if (!p) p = strstr(low, "ch-");
+    if (!p) p = strstr(low, "ch_");
+
+    if (p) {
+        while (*p && !isdigit((unsigned char)*p)) p++;
+        if (*p && isdigit((unsigned char)*p)) {
+            return atoi(p);
         }
     }
 
-    // Check if directory contains at least one image file
-    char search_pattern[2048];
-    snprintf(search_pattern, sizeof(search_pattern), "%s\\*.*", chapter_dir);
+    // 2. Check if string starts with digits or separator + digits (e.g. "001", "1", "0001", "1-eng-li")
+    const char *s = low;
+    while (*s && (isspace((unsigned char)*s) || *s == '_' || *s == '-')) s++;
+    if (*s && isdigit((unsigned char)*s)) {
+        return atoi(s);
+    }
+
+    // 3. Fallback: find any digit in the string
+    for (size_t i = 0; low[i] != '\0'; i++) {
+        if (isdigit((unsigned char)low[i])) {
+            return atoi(&low[i]);
+        }
+    }
+
+    return -1;
+}
+
+static bool directory_has_images(const char *dir_path) {
+    DWORD attr = GetFileAttributesA(dir_path);
+    if (attr == INVALID_FILE_ATTRIBUTES || !(attr & FILE_ATTRIBUTE_DIRECTORY)) {
+        return false;
+    }
+
+    char search_pattern[MAX_PATH + 32];
+    snprintf(search_pattern, sizeof(search_pattern), "%s\\*.*", dir_path);
 
     WIN32_FIND_DATAA fd;
     HANDLE hFind = FindFirstFileA(search_pattern, &fd);
@@ -414,6 +440,69 @@ static bool is_chapter_already_downloaded(const char *target_root, const char *c
     return has_images;
 }
 
+// Checks if a chapter already has a folder on disk containing images.
+// Matches exact folder names, padded numbers (Chapter 001, 001, 1), and arbitrary suffixes (e.g. "Chapter 1-eng-li").
+static bool is_chapter_already_downloaded(const char *target_root, const char *chapter_name, int chapter_num) {
+    if (!target_root || target_root[0] == '\0') return false;
+
+    // 1. Direct exact name match
+    char chapter_dir[1024];
+    snprintf(chapter_dir, sizeof(chapter_dir), "%s\\%s", target_root, chapter_name);
+    if (directory_has_images(chapter_dir)) return true;
+
+    if (chapter_num > 0) {
+        // 2. Standardized numbering variations
+        char alt[1024];
+        snprintf(alt, sizeof(alt), "%s\\Chapter %d", target_root, chapter_num);
+        if (directory_has_images(alt)) return true;
+
+        snprintf(alt, sizeof(alt), "%s\\Chapter %02d", target_root, chapter_num);
+        if (directory_has_images(alt)) return true;
+
+        snprintf(alt, sizeof(alt), "%s\\Chapter %03d", target_root, chapter_num);
+        if (directory_has_images(alt)) return true;
+
+        snprintf(alt, sizeof(alt), "%s\\Chapter %04d", target_root, chapter_num);
+        if (directory_has_images(alt)) return true;
+
+        snprintf(alt, sizeof(alt), "%s\\%03d", target_root, chapter_num);
+        if (directory_has_images(alt)) return true;
+
+        snprintf(alt, sizeof(alt), "%s\\%04d", target_root, chapter_num);
+        if (directory_has_images(alt)) return true;
+
+        snprintf(alt, sizeof(alt), "%s\\%d", target_root, chapter_num);
+        if (directory_has_images(alt)) return true;
+
+        // 3. Scan existing folders on disk by numeric extraction (e.g. "Chapter 1-eng-li", "Ch. 1 - Vol 1")
+        char search_pattern[1024];
+        snprintf(search_pattern, sizeof(search_pattern), "%s\\*.*", target_root);
+
+        WIN32_FIND_DATAA fd;
+        HANDLE hFind = FindFirstFileA(search_pattern, &fd);
+        if (hFind != INVALID_HANDLE_VALUE) {
+            do {
+                if ((fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) &&
+                    strcmp(fd.cFileName, ".") != 0 && strcmp(fd.cFileName, "..") != 0) {
+
+                    int folder_num = extract_chapter_number_from_string(fd.cFileName);
+                    if (folder_num == chapter_num) {
+                        char matched_dir[1024];
+                        snprintf(matched_dir, sizeof(matched_dir), "%s\\%s", target_root, fd.cFileName);
+                        if (directory_has_images(matched_dir)) {
+                            FindClose(hFind);
+                            return true;
+                        }
+                    }
+                }
+            } while (FindNextFileA(hFind, &fd));
+            FindClose(hFind);
+        }
+    }
+
+    return false;
+}
+
 static int download_file(const char *url, const char *outpath, const char *referer) {
     if (!overwrite) {
         DWORD attr = GetFileAttributesA(outpath);
@@ -429,6 +518,15 @@ static int download_file(const char *url, const char *outpath, const char *refer
         curl_easy_cleanup(curl);
         return DL_ERR_FILE;
     }
+
+    char cookie_path[MAX_PATH];
+    wchar_t exePath[MAX_PATH];
+    GetModuleFileNameW(NULL, exePath, MAX_PATH);
+    wchar_t *p_slash = wcsrchr(exePath, L'\\');
+    if (p_slash) *(p_slash + 1) = L'\0';
+    wcscat(exePath, L"cookies.txt");
+    WideCharToMultiByte(CP_UTF8, 0, exePath, -1, cookie_path, MAX_PATH, NULL, NULL);
+
     curl_easy_setopt(curl, CURLOPT_URL, url);
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_file_cb);
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, fp);
@@ -436,13 +534,28 @@ static int download_file(const char *url, const char *outpath, const char *refer
     curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
     curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 0L);
     curl_easy_setopt(curl, CURLOPT_TIMEOUT, 60L);
-    curl_easy_setopt(curl, CURLOPT_USERAGENT, "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
+    curl_easy_setopt(curl, CURLOPT_ACCEPT_ENCODING, "");
+    curl_easy_setopt(curl, CURLOPT_COOKIEFILE, cookie_path);
+    curl_easy_setopt(curl, CURLOPT_COOKIEJAR, cookie_path);
+
+    struct curl_slist *headers = NULL;
+    headers = curl_slist_append(headers, "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36");
+    headers = curl_slist_append(headers, "Accept: image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8");
+    headers = curl_slist_append(headers, "Accept-Language: en-US,en;q=0.9,id;q=0.8");
+    headers = curl_slist_append(headers, "sec-ch-ua: \"Chromium\";v=\"124\", \"Google Chrome\";v=\"124\", \"Not-A.Brand\";v=\"99\"");
+    headers = curl_slist_append(headers, "sec-ch-ua-mobile: ?0");
+    headers = curl_slist_append(headers, "sec-ch-ua-platform: \"Windows\"");
+    headers = curl_slist_append(headers, "sec-fetch-dest: image");
+    headers = curl_slist_append(headers, "sec-fetch-mode: no-cors");
+    headers = curl_slist_append(headers, "sec-fetch-site: cross-site");
 
     if (referer && referer[0] != '\0') {
         curl_easy_setopt(curl, CURLOPT_REFERER, referer);
     }
+    curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
 
     CURLcode res = curl_easy_perform(curl);
+    curl_slist_free_all(headers);
     fclose(fp);
     curl_easy_cleanup(curl);
 
@@ -452,246 +565,7 @@ static int download_file(const char *url, const char *outpath, const char *refer
     }
     return (res == CURLE_OK) ? DL_SUCCESS : DL_ERR_PERFORM;
 }
-
-static int scan_chapters(const char *html, const char *base_host, ChapterItem *chapters, int max_chapters, SiteType site) {
-    int count = 0;
-    const char *p = html;
-
-    while ((p = strstr(p, "<a ")) != NULL && count < max_chapters) {
-        const char *tag_end = strchr(p, '>');
-        if (!tag_end) break;
-
-        const char *href_pos = strstr(p, "href=\"");
-        if (!href_pos || href_pos > tag_end) {
-            href_pos = strstr(p, "href='");
-        }
-        if (href_pos && href_pos < tag_end) {
-            char quote = href_pos[5];
-            const char *val_start = href_pos + 6;
-            const char *val_end = strchr(val_start, quote);
-            if (val_end && (val_end - val_start) < 1000) {
-                char raw_url[1024];
-                size_t ulen = val_end - val_start;
-                strncpy(raw_url, val_start, ulen);
-                raw_url[ulen] = '\0';
-
-                bool is_chapter = false;
-
-                if (site == SITE_MGEKO) {
-                    is_chapter = (strstr(raw_url, "/reader/") != NULL);
-                } else if (site == SITE_MANGANATO) {
-                    is_chapter = (strstr(raw_url, "/chapter-") != NULL || strstr(p, "chapter-name") != NULL);
-                } else if (site == SITE_ASURA) {
-                    is_chapter = (strstr(raw_url, "/chapter/") != NULL || strstr(raw_url, "-chapter-") != NULL);
-                } else {
-                    is_chapter = (strstr(raw_url, "/reader/") != NULL ||
-                                  strstr(raw_url, "-chapter-") != NULL ||
-                                  strstr(raw_url, "/chapter-") != NULL ||
-                                  strstr(raw_url, "/chapter/") != NULL ||
-                                  strstr(raw_url, "/ch-") != NULL);
-                }
-
-                if (is_chapter &&
-                    strstr(raw_url, "login") == NULL &&
-                    strstr(raw_url, "javascript:") == NULL &&
-                    strstr(raw_url, "#") == NULL) {
-
-                    char full_url[1024];
-                    resolve_url(base_host, raw_url, full_url, sizeof(full_url));
-
-                    bool exists = false;
-                    for (int i = 0; i < count; i++) {
-                        if (strcmp(chapters[i].url, full_url) == 0) {
-                            exists = true;
-                            break;
-                        }
-                    }
-
-                    if (!exists) {
-                        snprintf(chapters[count].url, sizeof(chapters[count].url), "%s", full_url);
-
-                        char ch_title[256] = "";
-                        const char *a_end = strstr(tag_end, "</a>");
-                        if (a_end) {
-                            const char *ct = strstr(tag_end, "class=\"chapter-title\"");
-                            if (!ct || ct > a_end) ct = strstr(tag_end, "class='chapter-title'");
-                            if (!ct || ct > a_end) ct = strstr(tag_end, "class=\"chapter-name\"");
-                            if (!ct || ct > a_end) ct = strstr(tag_end, "class='chapter-name'");
-                            if (ct && ct < a_end) {
-                                const char *ct_val = strchr(ct, '>');
-                                if (ct_val && ct_val < a_end) {
-                                    ct_val++;
-                                    const char *ct_end = strchr(ct_val, '<');
-                                    if (ct_end && ct_end <= a_end) {
-                                        size_t tlen = ct_end - ct_val;
-                                        if (tlen >= sizeof(ch_title)) tlen = sizeof(ch_title) - 1;
-                                        strncpy(ch_title, ct_val, tlen);
-                                        ch_title[tlen] = '\0';
-                                        trim_whitespace(ch_title);
-                                    }
-                                }
-                            }
-                        }
-
-                        if (ch_title[0] == '\0') {
-                            const char *tattr = strstr(p, "title=\"");
-                            if (tattr && tattr < tag_end) {
-                                const char *tval = tattr + 7;
-                                const char *tend = strchr(tval, '\"');
-                                if (tend && tend <= tag_end) {
-                                    size_t tlen = tend - tval;
-                                    if (tlen >= sizeof(ch_title)) tlen = sizeof(ch_title) - 1;
-                                    strncpy(ch_title, tval, tlen);
-                                    ch_title[tlen] = '\0';
-                                    trim_whitespace(ch_title);
-                                }
-                            }
-                        }
-
-                        if (ch_title[0] == '\0') {
-                            char temp_u[1024];
-                            strncpy(temp_u, raw_url, sizeof(temp_u) - 1);
-                            temp_u[sizeof(temp_u) - 1] = '\0';
-                            size_t tlen = strlen(temp_u);
-                            while (tlen > 0 && temp_u[tlen - 1] == '/') temp_u[--tlen] = '\0';
-                            char *last_s = strrchr(temp_u, '/');
-                            if (last_s) {
-                                snprintf(ch_title, sizeof(ch_title), "%s", last_s + 1);
-                            } else {
-                                snprintf(ch_title, sizeof(ch_title), "Chapter_%03d", count + 1);
-                            }
-                        }
-
-                        sanitize_filename(ch_title);
-                        if (ch_title[0] == '\0') snprintf(ch_title, sizeof(ch_title), "Chapter_%03d", count + 1);
-
-                        if (isdigit((unsigned char)ch_title[0])) {
-                            snprintf(chapters[count].name, sizeof(chapters[count].name), "Chapter %s", ch_title);
-                        } else {
-                            snprintf(chapters[count].name, sizeof(chapters[count].name), "%s", ch_title);
-                        }
-
-                        chapters[count].chapter_num = count + 1;
-                        for (size_t s = 0; ch_title[s] != '\0'; s++) {
-                            if (isdigit((unsigned char)ch_title[s])) {
-                                chapters[count].chapter_num = atoi(&ch_title[s]);
-                                break;
-                            }
-                        }
-
-                        count++;
-                    }
-                }
-            }
-        }
-        p = tag_end + 1;
-    }
-    return count;
-}
-
-static int scan_chapter_images(const char *html, const char *base_host, char images[][1024], int max_images, SiteType site) {
-    int count = 0;
-
-    const char *start_p = html;
-    const char *reader_sec = NULL;
-
-    if (site == SITE_MGEKO) {
-        reader_sec = strstr(html, "id=\"chapter-reader\"");
-        if (!reader_sec) reader_sec = strstr(html, "id='chapter-reader'");
-    } else if (site == SITE_MANGANATO) {
-        reader_sec = strstr(html, "container-chapter-reader");
-    } else if (site == SITE_ASURA) {
-        reader_sec = strstr(html, "id=\"readerarea\"");
-        if (!reader_sec) reader_sec = strstr(html, "class=\"rd-article\"");
-    }
-
-    if (!reader_sec) {
-        const char *candidates[] = {
-            "id=\"chapter-reader\"", "class=\"chapter-reader\"",
-            "id=\"readerarea\"", "class=\"reading-content\"",
-            "container-chapter-reader", "id=\"reader\"", "class=\"page-in\""
-        };
-        for (size_t c = 0; c < sizeof(candidates)/sizeof(candidates[0]); c++) {
-            reader_sec = strstr(html, candidates[c]);
-            if (reader_sec) break;
-        }
-    }
-
-    if (reader_sec) {
-        start_p = reader_sec;
-    }
-
-    const char *p = start_p;
-    while ((p = strstr(p, "<img ")) != NULL && count < max_images) {
-        const char *tag_end = strchr(p, '>');
-        if (!tag_end) break;
-
-        const char *src_pos = NULL;
-        const char *dsrc = strstr(p, "data-src=\"");
-        if (!dsrc || dsrc > tag_end) dsrc = strstr(p, "data-original=\"");
-        if (!dsrc || dsrc > tag_end) dsrc = strstr(p, "data-lazy-src=\"");
-        if (!dsrc || dsrc > tag_end) dsrc = strstr(p, "data-src='");
-        if (!dsrc || dsrc > tag_end) dsrc = strstr(p, "data-original='");
-
-        if (dsrc && dsrc < tag_end) {
-            src_pos = dsrc;
-            src_pos = strchr(src_pos, '=') + 1;
-        } else {
-            const char *src = strstr(p, "src=\"");
-            if (!src || src > tag_end) src = strstr(p, "src='");
-            if (src && src < tag_end) {
-                src_pos = src + 4;
-            }
-        }
-
-        if (src_pos && src_pos < tag_end) {
-            char quote = *src_pos;
-            if (quote == '\"' || quote == '\'') {
-                src_pos++;
-                const char *val_end = strchr(src_pos, quote);
-                if (val_end && (val_end - src_pos) < 1000) {
-                    char raw_url[1024];
-                    size_t ulen = val_end - src_pos;
-                    strncpy(raw_url, src_pos, ulen);
-                    raw_url[ulen] = '\0';
-                    trim_whitespace(raw_url);
-
-                    char low_url[1024];
-                    for (size_t k = 0; k <= ulen && k < sizeof(low_url) - 1; k++) {
-                        low_url[k] = (char)tolower((unsigned char)raw_url[k]);
-                    }
-                    low_url[ulen] = '\0';
-
-                    bool is_ad_or_logo = (strstr(low_url, "logo") != NULL ||
-                                         strstr(low_url, "/static/img/") != NULL ||
-                                         strstr(low_url, "loading") != NULL ||
-                                         strstr(low_url, "avatar") != NULL ||
-                                         strstr(low_url, "banner") != NULL ||
-                                         strstr(low_url, "favicon") != NULL ||
-                                         strstr(low_url, ".svg") != NULL ||
-                                         strstr(low_url, "radioads") != NULL);
-
-                    bool is_image_ext = (strstr(low_url, ".jpg") != NULL ||
-                                         strstr(low_url, ".jpeg") != NULL ||
-                                         strstr(low_url, ".png") != NULL ||
-                                         strstr(low_url, ".webp") != NULL);
-
-                    if (!is_ad_or_logo && is_image_ext && raw_url[0] != '\0') {
-                        char full_img_url[1024];
-                        resolve_url(base_host, raw_url, full_img_url, sizeof(full_img_url));
-
-                        snprintf(images[count], sizeof(images[count]), "%s", full_img_url);
-                        count++;
-                    }
-                }
-            }
-        }
-        p = tag_end + 1;
-    }
-    return count;
-}
-
-static void extract_extension(const char *url, char *ext, size_t max_ext) {
+void extract_extension(const char *url, char *ext, size_t max_ext) {
     strncpy(ext, "jpg", max_ext);
     const char *q = strchr(url, '?');
     size_t url_len = q ? (size_t)(q - url) : strlen(url);
@@ -717,34 +591,39 @@ static DWORD WINAPI DownloadThreadProc(LPVOID lpParam) {
     char base_host[256];
     get_base_host(base_url, base_host, sizeof(base_host));
 
-    char site_name[256] = "";
-    SiteType site_type = detect_site_from_url(base_url, site_name, sizeof(site_name));
+    const Scraper *scraper = find_scraper(base_url);
+    if (!scraper) scraper = get_scraper_by_id("generic");
 
     char logmsg[2048];
-    snprintf(logmsg, sizeof(logmsg), "=== Memulai Proses Manga Downloader ===");
+    snprintf(logmsg, sizeof(logmsg), "=======================================================");
     append_log(logmsg);
-    snprintf(logmsg, sizeof(logmsg), "Link Utama: %s", base_url);
+    snprintf(logmsg, sizeof(logmsg), "=== Memulai Proses Manga Downloader Native ===");
     append_log(logmsg);
-    snprintf(logmsg, sizeof(logmsg), "Website Terdeteksi: %s", site_name);
+    snprintf(logmsg, sizeof(logmsg), "=======================================================");
+    append_log(logmsg);
+    snprintf(logmsg, sizeof(logmsg), "[Langkah 1/5] Inisialisasi engine & deteksi website: %s", scraper->display_name);
+    append_log(logmsg);
+    snprintf(logmsg, sizeof(logmsg), "              Link Utama   : %s", base_url);
+    append_log(logmsg);
+    snprintf(logmsg, sizeof(logmsg), "              Folder Target: %s", target_root);
     append_log(logmsg);
 
     if (only_missing) {
-        append_log("Mode Seleksi: HANYA CHAPTER YANG BELUM ADA DI FOLDER");
+        append_log("              Mode Filter  : Hanya cari & download chapter yang belum ada di hardisk");
     } else {
-        snprintf(logmsg, sizeof(logmsg), "Filter Chapter: %s", chapter_filter[0] ? chapter_filter : "(Semua Chapter)");
+        snprintf(logmsg, sizeof(logmsg), "              Mode Filter  : %s", chapter_filter[0] ? chapter_filter : "(Semua Chapter)");
         append_log(logmsg);
     }
 
-    snprintf(logmsg, sizeof(logmsg), "Folder Target: %s", target_root);
+    snprintf(logmsg, sizeof(logmsg), "              Mode Berkas  : %s", overwrite ? "Timpa (Overwrite)" : "Lewati jika sudah ada (Skip)");
     append_log(logmsg);
-    snprintf(logmsg, sizeof(logmsg), "Mode Duplikasi: %s", overwrite ? "Timpa (Overwrite)" : "Lewati jika sudah ada (Skip)");
-    append_log(logmsg);
+    append_log("[Cloudflare] Menyiapkan browser headers & container sesi cookies...");
 
     // 1. Fetch main page HTML
-    append_log("Mengambil halaman utama untuk memindai daftar chapter...");
+    append_log("\n[Langkah 2/5] Mengambil halaman utama manga & memverifikasi akses...");
     char *main_html = fetch_url(base_url, NULL);
     if (!main_html) {
-        append_log("[Error] Gagal mengakses link utama manga. Periksa koneksi internet atau URL.");
+        append_log("[Error] Gagal mengakses link utama manga. Periksa koneksi internet atau proteksi Cloudflare.");
         is_downloading = false;
         EnableWindow(hStartBtn, TRUE);
         EnableWindow(hStopBtn, FALSE);
@@ -752,6 +631,7 @@ static DWORD WINAPI DownloadThreadProc(LPVOID lpParam) {
     }
 
     // 2. Scan chapters
+    append_log("[Langkah 3/5] Memindai seluruh daftar chapter di situs...");
     ChapterItem *chapters = (ChapterItem *)calloc(MAX_CHAPTERS, sizeof(ChapterItem));
     if (!chapters) {
         append_log("[Error] Gagal mengalokasikan memori untuk daftar chapter.");
@@ -762,7 +642,7 @@ static DWORD WINAPI DownloadThreadProc(LPVOID lpParam) {
         return 1;
     }
 
-    int total_chapters = scan_chapters(main_html, base_host, chapters, MAX_CHAPTERS, site_type);
+    int total_chapters = scraper->scan_chapters(base_url, main_html, chapters, MAX_CHAPTERS);
     free(main_html);
 
     if (total_chapters == 0) {
@@ -780,12 +660,12 @@ static DWORD WINAPI DownloadThreadProc(LPVOID lpParam) {
             return 0;
         }
     } else {
-        snprintf(logmsg, sizeof(logmsg), "Berhasil memindai: Ditemukan total %d chapter di situs.", total_chapters);
+        snprintf(logmsg, sizeof(logmsg), "              -> Berhasil memindai: Ditemukan total %d chapter di situs.", total_chapters);
         append_log(logmsg);
 
         // Sort chronologically from lowest chapter number to highest
         if (total_chapters > 1 && chapters[0].chapter_num > chapters[total_chapters - 1].chapter_num) {
-            append_log("Menyesuaikan urutan: Mengurutkan mulai dari chapter paling awal...");
+            append_log("              -> Menyesuaikan urutan: Mengurutkan mulai dari chapter paling awal...");
             for (int i = 0; i < total_chapters / 2; i++) {
                 ChapterItem temp = chapters[i];
                 chapters[i] = chapters[total_chapters - 1 - i];
@@ -795,6 +675,7 @@ static DWORD WINAPI DownloadThreadProc(LPVOID lpParam) {
     }
 
     // Count how many chapters will be downloaded
+    append_log("\n[Langkah 4/5] Memeriksa hardisk: mencocokkan nomor chapter (pola: 'Chapter 1', '001', 'Chapter 1-eng-li', dll.)...");
     int to_download_count = 0;
     if (only_missing) {
         for (int i = 0; i < total_chapters; i++) {
@@ -802,7 +683,7 @@ static DWORD WINAPI DownloadThreadProc(LPVOID lpParam) {
                 to_download_count++;
             }
         }
-        snprintf(logmsg, sizeof(logmsg), "Mode Khusus: Terdeteksi %d chapter baru/belum ada (dari total %d chapter di situs).",
+        snprintf(logmsg, sizeof(logmsg), "              -> Hasil scan: Terdeteksi %d chapter baru/belum ada (dari total %d chapter di situs).",
                  to_download_count, total_chapters);
         append_log(logmsg);
     } else {
@@ -812,11 +693,12 @@ static DWORD WINAPI DownloadThreadProc(LPVOID lpParam) {
             }
         }
         if (chapter_filter[0] != '\0') {
-            snprintf(logmsg, sizeof(logmsg), "Filter aktif ['%s']: %d dari %d chapter akan diunduh.",
+            snprintf(logmsg, sizeof(logmsg), "              -> Filter aktif ['%s']: %d dari %d chapter akan diunduh.",
                      chapter_filter, to_download_count, total_chapters);
             append_log(logmsg);
         }
     }
+
 
     if (to_download_count == 0) {
         if (only_missing) {
@@ -832,6 +714,7 @@ static DWORD WINAPI DownloadThreadProc(LPVOID lpParam) {
     }
 
     // 3. Loop through each selected chapter
+    append_log("\n[Langkah 5/5] Mengunduh gambar untuk setiap chapter...");
     static char page_urls[MAX_PAGES][1024];
     int current_processed = 0;
 
@@ -873,7 +756,7 @@ static DWORD WINAPI DownloadThreadProc(LPVOID lpParam) {
         }
 
         // Scan images from chapter reader
-        int total_pages = scan_chapter_images(ch_html, base_host, page_urls, MAX_PAGES, site_type);
+        int total_pages = scraper->scan_images(chapters[ch_idx].url, ch_html, page_urls, MAX_PAGES);
         free(ch_html);
 
         if (total_pages == 0) {
@@ -906,7 +789,7 @@ static DWORD WINAPI DownloadThreadProc(LPVOID lpParam) {
                 append_log("-> Download dibatalkan saat sedang berlangsung.");
                 break;
             } else {
-                snprintf(logmsg, sizeof(logmsg), "-> [Gagal] Gambar %03d.%s (%s)", p_idx + 1, ext, page_urls[p_idx]);
+                snprintf(logmsg, sizeof(logmsg), "-> [Gagal] Gambar %03d.%s (%.500s)", p_idx + 1, ext, page_urls[p_idx]);
                 append_log(logmsg);
             }
         }
