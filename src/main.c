@@ -9,6 +9,8 @@
 #include <shlobj.h>
 #include "resource.h"
 #include "ai_agent.h"
+#include "pdf_converter.h"
+#include "manga_translator.h"
 #include "db_migration.h"
 #include "config.h"
 #include "lang.h"
@@ -74,11 +76,25 @@ static void show_home_controls(bool show) {
 
 static void switch_main_tab(int tab_index) {
     if (tab_index == 0) {
-        ai_agent_switch_tab(0);
         show_home_controls(true);
+        pdf_converter_switch_tab(false);
+        manga_translator_switch_tab(false);
+        ai_agent_switch_tab(0);
+    } else if (tab_index == 1) {
+        show_home_controls(false);
+        pdf_converter_switch_tab(true);
+        manga_translator_switch_tab(false);
+        ai_agent_switch_tab(0);
+    } else if (tab_index == 2) {
+        show_home_controls(false);
+        pdf_converter_switch_tab(false);
+        manga_translator_switch_tab(true);
+        ai_agent_switch_tab(0);
     } else {
         show_home_controls(false);
-        ai_agent_switch_tab(tab_index);
+        pdf_converter_switch_tab(false);
+        manga_translator_switch_tab(false);
+        ai_agent_switch_tab(tab_index - 2);
     }
 }
 
@@ -884,6 +900,8 @@ static DWORD WINAPI DownloadThreadProc(LPVOID lpParam) {
         append_log("=========================================");
     }
 
+    MessageBeep(MB_ICONASTERISK); // Sound notification upon completion
+
     is_downloading = false;
     EnableWindow(hStartBtn, TRUE);
     EnableWindow(hStopBtn, FALSE);
@@ -1069,12 +1087,16 @@ static void apply_language_change(HWND hwnd) {
         tie.mask = TCIF_TEXT;
         tie.pszText = (LPWSTR)_TW("str_tab_home");
         TabCtrl_SetItem(hMainTab, 0, &tie);
-        tie.pszText = (LPWSTR)_TW("str_tab_ai_test");
+        tie.pszText = (LPWSTR)_TW("str_tab_pdf");
         TabCtrl_SetItem(hMainTab, 1, &tie);
-        tie.pszText = (LPWSTR)_TW("str_tab_ai_catalog");
+        tie.pszText = (LPWSTR)_TW("str_tab_translate");
         TabCtrl_SetItem(hMainTab, 2, &tie);
-        tie.pszText = (LPWSTR)_TW("str_tab_ai_active");
+        tie.pszText = (LPWSTR)_TW("str_tab_ai_test");
         TabCtrl_SetItem(hMainTab, 3, &tie);
+        tie.pszText = (LPWSTR)_TW("str_tab_ai_catalog");
+        TabCtrl_SetItem(hMainTab, 4, &tie);
+        tie.pszText = (LPWSTR)_TW("str_tab_ai_active");
+        TabCtrl_SetItem(hMainTab, 5, &tie);
     }
 
     if (hLblUrl) SetWindowTextW(hLblUrl, _TW("str_main_link"));
@@ -1090,6 +1112,8 @@ static void apply_language_change(HWND hwnd) {
     if (hLblLang) SetWindowTextW(hLblLang, _TW("str_lang_label"));
 
     update_site_status_ui();
+    pdf_converter_refresh_lang();
+    manga_translator_refresh_lang();
     ai_agent_refresh_lang();
 
     InvalidateRect(hwnd, NULL, TRUE);
@@ -1184,12 +1208,16 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) 
         tie.mask = TCIF_TEXT;
         tie.pszText = (LPWSTR)_TW("str_tab_home");
         TabCtrl_InsertItem(hMainTab, 0, &tie);
-        tie.pszText = (LPWSTR)_TW("str_tab_ai_test");
+        tie.pszText = (LPWSTR)_TW("str_tab_pdf");
         TabCtrl_InsertItem(hMainTab, 1, &tie);
-        tie.pszText = (LPWSTR)_TW("str_tab_ai_catalog");
+        tie.pszText = (LPWSTR)_TW("str_tab_translate");
         TabCtrl_InsertItem(hMainTab, 2, &tie);
-        tie.pszText = (LPWSTR)_TW("str_tab_ai_active");
+        tie.pszText = (LPWSTR)_TW("str_tab_ai_test");
         TabCtrl_InsertItem(hMainTab, 3, &tie);
+        tie.pszText = (LPWSTR)_TW("str_tab_ai_catalog");
+        TabCtrl_InsertItem(hMainTab, 4, &tie);
+        tie.pszText = (LPWSTR)_TW("str_tab_ai_active");
+        TabCtrl_InsertItem(hMainTab, 5, &tie);
 
         // Label: Link Utama Manga
         hLblUrl = CreateWindowW(L"STATIC", _TW("str_main_link"), WS_CHILD | WS_VISIBLE,
@@ -1327,6 +1355,12 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) 
         // Initialize AI Agent settings controls & database
         ai_agent_init(hwnd, hInst);
 
+        // Initialize PDF Converter tab controls
+        pdf_converter_init(hwnd, hInst);
+
+        // Initialize Manga Translator tab controls
+        manga_translator_init(hwnd, hInst);
+
         // Show Home tab by default
         switch_main_tab(0);
         break;
@@ -1351,6 +1385,14 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) 
         WORD id = LOWORD(wParam);
         if (id >= 300 && id < 400) {
             ai_agent_on_command(hwnd, wParam, lParam);
+            break;
+        }
+        if (id >= 400 && id < 500) {
+            pdf_converter_on_command(hwnd, wParam, lParam);
+            break;
+        }
+        if (id >= 500 && id < 600) {
+            manga_translator_on_command(hwnd, wParam, lParam);
             break;
         }
 

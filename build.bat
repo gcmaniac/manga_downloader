@@ -40,13 +40,13 @@ set INCDIR=D:\msys64\mingw64\include
 set LIBDIR=D:\msys64\mingw64\lib
 
 rem Source files
-set SRCS=src\main.c src\ai_agent.c src\db_migration.c src\config.c src\lang.c src\scrapers\scrapers.c src\scrapers\scraper_manganato.c src\scrapers\scraper_mgeko.c src\scrapers\scraper_asura.c src\scrapers\scraper_generic.c
+set SRCS=src\main.c src\ai_agent.c src\pdf_converter.c src\manga_translator.c src\db_migration.c src\config.c src\lang.c src\scrapers\scrapers.c src\scrapers\scraper_manganato.c src\scrapers\scraper_mgeko.c src\scrapers\scraper_asura.c src\scrapers\scraper_generic.c
 
 if "%1"=="--static" goto build_static
 if "%2"=="--static" goto build_static
 
-rem Linker flags (resources, libcurl, sqlite3, comctl32, cJSON, Unicode, Windows subsystem, Shell/OLE)
-set LDFLAGS="%DIST_DIR%\resources.o" -lcurl -lsqlite3 -lcomctl32 -lcjson -municode -mwindows -lole32 -lshell32
+rem Linker flags (resources, libcurl, sqlite3, comctl32, cJSON, Unicode, Windows subsystem, Shell/OLE, WIC, GDI)
+set LDFLAGS="%DIST_DIR%\resources.o" -lcurl -lsqlite3 -lcomctl32 -lcjson -municode -mwindows -lole32 -lshell32 -lwindowscodecs -loleaut32 -lgdi32
 
 echo [2/3] Compiling manga_downloader.exe into dist...
 %CC% %CFLAGS% -I%INCDIR% -L%LIBDIR% -o "%DIST_DIR%\manga_downloader.exe" %SRCS% %LDFLAGS%
@@ -58,7 +58,7 @@ if %errorlevel% neq 0 (
 goto post_build
 
 :build_static
-set STATIC_LDFLAGS="%DIST_DIR%\resources.o" -DCURL_STATICLIB -static -lcurl -lsqlite3 -lcjson -lssl -lcrypto -lnghttp2 -lnghttp3 -lngtcp2 -lngtcp2_crypto_ossl -lssh2 -lzstd -lbrotlidec -lbrotlicommon -lidn2 -lpsl -lunistring -lintl -liconv -lz -lcomctl32 -municode -mwindows -lole32 -lshell32 -lws2_32 -lcrypt32 -lwldap32 -liphlpapi -lbcrypt -lsecur32 -s
+set STATIC_LDFLAGS="%DIST_DIR%\resources.o" -DCURL_STATICLIB -static -lcurl -lsqlite3 -lcjson -lssl -lcrypto -lnghttp2 -lnghttp3 -lngtcp2 -lngtcp2_crypto_ossl -lssh2 -lzstd -lbrotlidec -lbrotlicommon -lidn2 -lpsl -lunistring -lintl -liconv -lz -lcomctl32 -municode -mwindows -lole32 -lshell32 -lwindowscodecs -loleaut32 -lgdi32 -lws2_32 -lcrypt32 -lwldap32 -liphlpapi -lbcrypt -lsecur32 -s
 echo [2/3] Compiling manga_downloader_standalone.exe into dist (static)...
 %CC% %CFLAGS% -o "%DIST_DIR%\manga_downloader_standalone.exe" %SRCS% %STATIC_LDFLAGS%
 if %errorlevel% neq 0 (

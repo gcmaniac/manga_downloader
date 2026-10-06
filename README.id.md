@@ -116,6 +116,9 @@ flowchart TD
 | **🛡️ Deteksi Chapter Belum Ada** | Mencegah download berulang jika Anda mengunduh manga yang sedang berjalan (*ongoing*). Cukup centang opsi ini dan program hanya mengunduh chapter baru! |
 | **⚡ Multi-Threaded Async Worker** | Download berjalan di latar belakang tanpa mengunci antarmuka program, dilengkapi tombol **Stop** yang responsif sewaktu-waktu. |
 | **📁 Tata Kelola Folder Otomatis** | Gambar disimpan rapi per subfolder chapter dengan penomoran terurut (`001.jpg`, `002.jpg`, ...) sehingga nyaman dibaca dengan pembaca manga offline mana pun. |
+| **📄 Konverter PDF Cerdas** | Konversi chapter yang diunduh ke dokumen PDF (per chapter atau per volume). Mendukung pemindahan folder chapter ke volume otomatis dan parsing daftar volume via AI Agent. |
+| **🌐 Penerjemah Manga AI** | Pipeline penerjemahan visual berbasis Vision LLM. Otomatis mendeteksi balon dialog (speech bubbles), menghapus teks asli (in-painting), dan mengetik ulang teks terjemahan (ID/EN/JP) dengan font proporsional, serta opsi ekspor langsung ke PDF. |
+| **🔔 Notifikasi Suara** | Memainkan suara lonceng notifikasi Windows saat proses download, konversi PDF, maupun translasi selesai. |
 | **🧠 Built-in AI Agent Hub** | Manajemen database lokal SQLite untuk integrasi AI (OpenRouter API), mendukung pengujian ratusan model AI, perbandingan biaya token, latensi, dan ranking kecerdasan. |
 | **📦 100% Portable** | Bebas dipindahkan ke USB Flashdisk atau drive eksternal, siap jalan di Windows 10 dan Windows 11. |
 
@@ -152,19 +155,38 @@ flowchart TD
 
 ---
 
-### 3. Menggunakan Fitur AI Hub (Tab 2, 3, & 4)
+### 3. Konversi ke PDF (Tab 2: Konversi PDF)
+* Pilih antara **Per Chapter (1 PDF per chapter)** atau **Per Volume (1 PDF per volume)**.
+* Pengelompokan volume dapat menggunakan daftar volume custom atau menetapkan jumlah chapter tetap per volume.
+* Secara otomatis memindahkan chapter ke dalam folder volume terstruktur dan menghasilkan buku PDF rapi.
+
+---
+
+### 4. Terjemahan Manga Visual (Tab 3: Terjemahan Manga)
+* **Alur Penerjemahan Visual**:
+  1. Pilih folder yang berisi chapter manga yang sudah didownload.
+  2. Tentukan bahasa tujuan (**Bahasa Indonesia**, **English**, atau **Japanese**).
+  3. Filter rentang chapter yang ingin diterjemahkan (contoh: `1-5`).
+  4. Opsi hasil:
+     * **Simpan gambar hasil terjemahan**: Menyimpan halaman baru ke `[Folder Target]\Chapter XXX [ID]\...`
+     * **Satukan langsung ke format PDF**: Mengompilasi gambar terjemahan langsung menjadi file PDF siap baca.
+  5. Vision LLM (`server_agent` + `model_penggunaan`) akan memindai tiap halaman, mendeteksi lokasi balon teks, menghapus teks asli, lalu mengetikkan teks terjemahan secara rapi dan otomatis menyesuaikan ukuran font.
+
+---
+
+### 5. Menggunakan Fitur AI Hub (Tab 4, 5, & 6)
 
 Aplikasi ini menyertakan panel evaluasi AI canggih berbasis SQLite untuk riset dan otomatisasi:
 
-* **Tab 2 (Pengaturan & Uji AI)**:
+* **Tab 4 (Pengaturan & Uji AI)**:
   * Masukkan API Key dari [OpenRouter](https://openrouter.ai/).
   * Klik tombol **Scan & Perbarui Model**. Aplikasi akan mengambil daftar lengkap model AI, menghitung estimasi latensi, serta harga input/output token.
   * Lakukan pengurutan (Sorting) ganda berdasarkan Rating, Latensi, atau Harga.
-* **Tab 3 (Katalog Model Teruji)**:
+* **Tab 5 (Katalog Model Teruji)**:
   * Filter model berdasarkan rentang harga atau rating tertentu.
   * Pilih model terbaik untuk didaftarkan ke daftar model operasional dengan menekan tombol **Gunakan Model Ini**.
-* **Tab 4 (Model AI Digunakan)**:
-  * Kelola prioritas urutan model AI aktif yang siap dikonfigurasikan untuk kebutuhan analisis dan translasi chapter mendatang.
+* **Tab 6 (Model AI Digunakan)**:
+  * Kelola prioritas urutan model AI aktif yang siap dikonfigurasikan untuk kebutuhan analisis dan translasi chapter.
 
 ---
 

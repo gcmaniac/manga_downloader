@@ -116,6 +116,9 @@ flowchart TD
 | **🛡️ Missing Chapter Detection** | Prevents redundant downloads for ongoing series. Check this box and the archiver will only download newly released chapters! |
 | **⚡ Multi-Threaded Async Worker** | Downloads execute on background threads without locking the UI, paired with a responsive **Stop** button anytime. |
 | **📁 Structured Auto-Organization** | Images are neatly saved into dedicated chapter subfolders with sequential zero-padded names (`001.jpg`, `002.jpg`, ...), fully compatible with any offline manga reader. |
+| **📄 Smart PDF Converter** | Convert downloaded chapters into PDF documents (per chapter or per volume). Supports automatic chapter-to-volume folder relocation and AI Agent volume text parsing. |
+| **🌐 AI Manga Translator** | Vision LLM-powered visual translation pipeline. Automatically detects speech bubbles, in-paints original text, and re-typesets translated text into target languages (ID/EN/JP), with optional direct PDF generation. |
+| **🔔 Sound Notifications** | Plays an audible Windows notification chime upon completion of download, PDF conversion, and translation jobs. |
 | **🧠 Built-in AI Agent Hub** | Embedded SQLite-backed management interface for AI models (OpenRouter API), supporting benchmarking across hundreds of models for token pricing, latency, and capability tiers. |
 | **📦 100% Portable** | Easily runs from a USB flash drive or external drive; ready out of the box on Windows 10 and Windows 11. |
 
@@ -152,19 +155,38 @@ flowchart TD
 
 ---
 
-### 3. Exploring the AI Hub (Tabs 2, 3, & 4)
+### 3. Converting to PDF (Tab 2: PDF Converter)
+* Choose between **Per Chapter (1 PDF per chapter)** or **Per Volume (1 PDF per volume)**.
+* Organize chapters by volume using custom volume lists or fixed chapter counts per volume.
+* Automatically moves chapters into structured volume folders and generates standardized PDF books.
+
+---
+
+### 4. Translating Manga (Tab 3: Manga Translator)
+* **Visual Manga Translation Pipeline**:
+  1. Select the folder containing downloaded chapter subfolders.
+  2. Choose your target translation language (**Bahasa Indonesia**, **English**, or **Japanese**).
+  3. Filter chapters to translate (e.g. `1-5`).
+  4. Options:
+     * **Keep original translated images**: Saves modified pages into `[Target Folder]\Chapter XXX [ID]\...`
+     * **Compile to PDF directly**: Automatically merges the translated pages into a clean chapter PDF book.
+  5. The Vision LLM (`server_agent` + `model_penggunaan`) reads each page, identifies bubble locations, masks out the original text, and typesets the new translated text neatly with auto-fitted fonts.
+
+---
+
+### 5. Exploring the AI Hub (Tabs 4, 5, & 6)
 
 The application includes an advanced SQLite-powered AI evaluation workspace for benchmarks and automation:
 
-* **Tab 2 (AI Settings & Benchmark)**:
+* **Tab 4 (AI Settings & Benchmark)**:
   * Enter your API Key from [OpenRouter](https://openrouter.ai/).
   * Click **Scan & Update Models**. The application retrieves the complete catalog of models, calculates estimated latency, and logs input/output token pricing.
   * Sort models by Rating, Latency, or Pricing tiers.
-* **Tab 3 (Tested Model Catalog)**:
+* **Tab 5 (Tested Model Catalog)**:
   * Filter models by price boundaries or rating thresholds.
   * Pick the top-performing model and register it into your active operational roster by clicking **Use This Model**.
-* **Tab 4 (Active AI Models)**:
-  * Organize priority order and manage active models configured for upcoming chapter text translation and analysis tasks.
+* **Tab 6 (Active AI Models)**:
+  * Organize priority order and manage active models configured for chapter text translation and analysis tasks.
 
 ---
 
