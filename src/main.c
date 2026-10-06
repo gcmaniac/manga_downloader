@@ -9,6 +9,7 @@
 #include <shlobj.h>
 #include "resource.h"
 #include "ai_agent.h"
+#include "db_migration.h"
 
 #define LOG_BUFFER_SIZE         131072
 #define ID_URL_EDIT             101
@@ -1151,6 +1152,14 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) 
         g_home_controls[g_home_ctrl_count++] = hLogEdit;
 
         update_site_status_ui();
+
+        // Kunci aplikasi dan jalankan migrasi database SQLite sampai semua tabel & file siap
+        char mig_err[512] = "";
+        if (!db_migration_run_all(hwnd, append_log, mig_err, sizeof(mig_err))) {
+            wchar_t werr[512];
+            MultiByteToWideChar(CP_UTF8, 0, mig_err, -1, werr, 512);
+            MessageBoxW(hwnd, werr, L"Peringatan: Migrasi Basis Data Terkendala", MB_ICONWARNING | MB_OK);
+        }
 
         // Initialize AI Agent settings controls & database
         ai_agent_init(hwnd, hInst);

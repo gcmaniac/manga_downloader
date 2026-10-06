@@ -1,4 +1,5 @@
 #include "ai_agent.h"
+#include "db_migration.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -130,13 +131,10 @@ static LRESULT CALLBACK Tab3ListViewSubclassProc(HWND hwnd, UINT uMsg, WPARAM wP
     return CallWindowProc(g_oldTab3ListViewProc, hwnd, uMsg, wParam, lParam);
 }
 
-// Open or initialize SQLite database
+// Open SQLite database
 static sqlite3 *open_database(void) {
     wchar_t exePath[MAX_PATH];
-    GetModuleFileNameW(NULL, exePath, MAX_PATH);
-    wchar_t *p = wcsrchr(exePath, L'\\');
-    if (p) *(p + 1) = L'\0';
-    wcscat(exePath, L"manga_downloader.db");
+    db_migration_get_db_path(exePath, MAX_PATH);
 
     char dbPathA[MAX_PATH];
     WideCharToMultiByte(CP_UTF8, 0, exePath, -1, dbPathA, MAX_PATH, NULL, NULL);

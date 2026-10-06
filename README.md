@@ -119,10 +119,10 @@ flowchart TD
 
 ## 🚀 User Guide / Panduan Penggunaan
 
-### 1. Menjalankan Aplikasi
-* Unduh rilis portabel dari menu [Releases](https://github.com/gcmaniac/manga_downloader/releases) atau hasilkan paket sendiri menggunakan `package.bat`.
-* Ekstrak file `manga_downloader_portable.zip`.
-* Buka file executable `manga_downloader.exe`.
+### 1. Menjalankan Aplikasi (1-Klik Siap Pakai)
+* **Cara Cepat (1-Klik)**: Cukup klik ganda **`Jalankan_App.bat`** atau langsung file **`manga_downloader.exe`** di folder utama.
+* Seluruh dependensi pustaka (`libcurl`, `sqlite3`, `cjson`, dll.) dan database SQLite sudah terkonfigurasi secara portabel di dalam folder sehingga langsung berjalan seketika tanpa perlu instalasi atau setup tambahan.
+* Jika mendistribusikan ke komputer lain, gunakan file zip mandiri dari menu [Releases](https://github.com/gcmaniac/manga_downloader/releases) atau paketkan ulang dengan `package.bat`.
 
 ### 2. Mengunduh Manga (Tab 1: Home)
 1. **Link Utama Manga**:
