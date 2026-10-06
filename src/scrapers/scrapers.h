@@ -5,13 +5,12 @@
 #include "scraper_manganato.h"
 #include "scraper_mgeko.h"
 #include "scraper_asura.h"
-#include "scraper_flame.h"
 #include "scraper_generic.h"
 
 // Returns the best matching scraper for the given URL
 const Scraper *find_scraper(const char *url);
 
-// Returns a scraper by its ID ("manganato", "mgeko", "asura", "flame", "generic")
+// Returns a scraper by its ID ("manganato", "mgeko", "asura", "generic")
 const Scraper *get_scraper_by_id(const char *id);
 
 // Returns the list of all registered scrapers and their count

@@ -5,7 +5,6 @@ static const Scraper *g_registered_scrapers[] = {
     &g_scraper_manganato,
     &g_scraper_mgeko,
     &g_scraper_asura,
-    &g_scraper_flame,
     &g_scraper_generic, // Fallback must be last
     NULL
 };

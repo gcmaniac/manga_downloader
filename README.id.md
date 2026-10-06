@@ -70,10 +70,9 @@ flowchart TD
     C -->|MangaGeko| D1[Scraper MangaGeko]
     C -->|MangaNato / Kakalot| D2[Scraper MangaNato]
     C -->|Asura Scans| D3[Scraper Asura]
-    C -->|Flame Comics| D4[Scraper Flame]
-    C -->|Situs Lain| D5[Universal Heuristic Engine]
+    C -->|Situs Lain| D4[Universal Heuristic Engine]
     
-    D1 & D2 & D3 & D4 & D5 --> E[Scraping List Chapter Lengkap]
+    D1 & D2 & D3 & D4 --> E[Scraping List Chapter Lengkap]
     E --> F[Penerapan Filter Chapter User & Missing Chapter Detection]
     F --> G{Chapter Lolos Filter?}
     G -- Tidak --> H[Lewati Chapter]
@@ -112,7 +111,7 @@ flowchart TD
 | Fitur | Deskripsi |
 | :--- | :--- |
 | **🚀 Native Win32 UI** | Antarmuka grafis yang super cepat, ringan, responsif, dan hemat baterai tanpa runtime tambahan. |
-| **🎯 Multi-Site Scraper Engine** | Dukungan siap pakai untuk **MangaGeko**, **MangaNato**, **MangaKakalot**, **Asura Scans**, **Flame Comics**, serta **Universal Scraper** untuk situs manga berbasis web reader standar. |
+| **🎯 Multi-Site Scraper Engine** | Dukungan siap pakai untuk **MangaGeko**, **MangaNato**, **MangaKakalot**, **Asura Scans**, serta **Universal Scraper** untuk situs manga berbasis web reader standar. |
 | **🔢 Filter Chapter Fleksibel** | Dukungan pemilihan chapter spesifik maupun rentang, misalnya: `5`, `1-10`, `25, 28, 30`, atau `116-end`. |
 | **🛡️ Deteksi Chapter Belum Ada** | Mencegah download berulang jika Anda mengunduh manga yang sedang berjalan (*ongoing*). Cukup centang opsi ini dan program hanya mengunduh chapter baru! |
 | **⚡ Multi-Threaded Async Worker** | Download berjalan di latar belakang tanpa mengunci antarmuka program, dilengkapi tombol **Stop** yang responsif sewaktu-waktu. |

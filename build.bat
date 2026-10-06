@@ -40,7 +40,7 @@ set INCDIR=D:\msys64\mingw64\include
 set LIBDIR=D:\msys64\mingw64\lib
 
 rem Source files
-set SRCS=src\main.c src\ai_agent.c src\db_migration.c src\config.c src\lang.c src\scrapers\scrapers.c src\scrapers\scraper_manganato.c src\scrapers\scraper_mgeko.c src\scrapers\scraper_asura.c src\scrapers\scraper_flame.c src\scrapers\scraper_generic.c
+set SRCS=src\main.c src\ai_agent.c src\db_migration.c src\config.c src\lang.c src\scrapers\scrapers.c src\scrapers\scraper_manganato.c src\scrapers\scraper_mgeko.c src\scrapers\scraper_asura.c src\scrapers\scraper_generic.c
 
 if "%1"=="--static" goto build_static
 if "%2"=="--static" goto build_static

@@ -70,10 +70,9 @@ flowchart TD
     C -->|MangaGeko| D1[MangaGeko Scraper]
     C -->|MangaNato / Kakalot| D2[MangaNato Scraper]
     C -->|Asura Scans| D3[Asura Scraper]
-    C -->|Flame Comics| D4[Flame Scraper]
-    C -->|Other Sites| D5[Universal Heuristic Engine]
+    C -->|Other Sites| D4[Universal Heuristic Engine]
     
-    D1 & D2 & D3 & D4 & D5 --> E[Scrape Full Chapter List]
+    D1 & D2 & D3 & D4 --> E[Scrape Full Chapter List]
     E --> F[Apply User Chapter Range & Missing Chapter Filter]
     F --> G{Chapter Passes Filter?}
     G -- No --> H[Skip Chapter]
@@ -112,7 +111,7 @@ flowchart TD
 | Feature | Description |
 | :--- | :--- |
 | **🚀 Native Win32 UI** | Blazing-fast, ultra-lightweight, battery-efficient graphical interface with zero runtime overhead. |
-| **🎯 Multi-Site Scraper Engine** | Built-in support for **MangaGeko**, **MangaNato**, **MangaKakalot**, **Asura Scans**, **Flame Comics**, plus a versatile **Universal Scraper** for standard web readers. |
+| **🎯 Multi-Site Scraper Engine** | Built-in support for **MangaGeko**, **MangaNato**, **MangaKakalot**, **Asura Scans**, plus a versatile **Universal Scraper** for standard web readers. |
 | **🔢 Flexible Chapter Filtering** | Supports specific chapter numbers as well as arbitrary ranges: e.g., `5`, `1-10`, `25, 28, 30`, or `116-end`. |
 | **🛡️ Missing Chapter Detection** | Prevents redundant downloads for ongoing series. Check this box and the archiver will only download newly released chapters! |
 | **⚡ Multi-Threaded Async Worker** | Downloads execute on background threads without locking the UI, paired with a responsive **Stop** button anytime. |

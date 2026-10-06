@@ -463,7 +463,7 @@ static bool is_chapter_already_downloaded(const char *target_root, const char *c
     snprintf(chapter_dir, sizeof(chapter_dir), "%s\\%s", target_root, chapter_name);
     if (directory_has_images(chapter_dir)) return true;
 
-    if (chapter_num > 0) {
+    if (chapter_num >= 0) {
         // 2. Standardized numbering variations
         char alt[1024];
         snprintf(alt, sizeof(alt), "%s\\Chapter %d", target_root, chapter_num);
