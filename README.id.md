@@ -16,7 +16,7 @@
   </p>
 
   <p align="center">
-    <a href="README.en.md"><img src="https://img.shields.io/badge/Language-English-lightgrey?style=for-the-badge" alt="English" /></a>
+    <a href="README.md"><img src="https://img.shields.io/badge/Language-English-lightgrey?style=for-the-badge" alt="English" /></a>
     <a href="README.id.md"><img src="https://img.shields.io/badge/Language-Bahasa_Indonesia-green?style=for-the-badge" alt="Bahasa Indonesia" /></a>
   </p>
 
@@ -24,11 +24,11 @@
     <a href="https://github.com/gcmaniac/manga_downloader"><img src="https://img.shields.io/badge/Author-gcmaniac-orange?style=for-the-badge&logo=github" alt="Author gcmaniac" /></a>
     <a href="https://github.com/gcmaniac/manga_downloader/stargazers"><img src="https://img.shields.io/github/stars/gcmaniac/manga_downloader?style=for-the-badge&logo=github&color=ff69b4" alt="GitHub Stars" /></a>
     <a href="#-fitur-utama"><img src="https://img.shields.io/badge/Status-Active_Production-brightgreen?style=for-the-badge&logo=visual-studio-code" alt="Status" /></a>
-    <a href="#-spesifikasi-teknologi"><img src="https://img.shields.io/badge/Language-C99_Win32-00599C?style=for-the-badge&logo=c" alt="Language" /></a>
-    <a href="#-spesifikasi-teknologi"><img src="https://img.shields.io/badge/Network-libcurl-blue?style=for-the-badge&logo=curl" alt="libcurl" /></a>
-    <a href="#-spesifikasi-teknologi"><img src="https://img.shields.io/badge/Database-SQLite3-003B57?style=for-the-badge&logo=sqlite" alt="SQLite3" /></a>
+    <a href="#️-panduan-instalasi--setup-untuk-programmer-baru"><img src="https://img.shields.io/badge/Language-C99_Win32-00599C?style=for-the-badge&logo=c" alt="Language" /></a>
+    <a href="#️-panduan-instalasi--setup-untuk-programmer-baru"><img src="https://img.shields.io/badge/Network-libcurl-blue?style=for-the-badge&logo=curl" alt="libcurl" /></a>
+    <a href="#️-panduan-instalasi--setup-untuk-programmer-baru"><img src="https://img.shields.io/badge/Database-SQLite3-003B57?style=for-the-badge&logo=sqlite" alt="SQLite3" /></a>
     <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge" alt="License" /></a>
-    <a href="#-kompatibilitas"><img src="https://img.shields.io/badge/Platform-Windows_10_%2F_11-0078D6?style=for-the-badge&logo=windows" alt="Platform" /></a>
+    <a href="#️-panduan-instalasi--setup-untuk-programmer-baru"><img src="https://img.shields.io/badge/Platform-Windows_10_%2F_11-0078D6?style=for-the-badge&logo=windows" alt="Platform" /></a>
   </p>
 
   <p align="center">
@@ -36,7 +36,7 @@
     <a href="#-alur-sistem--cara-kerja">🔄 Alur Sistem</a> •
     <a href="#-user-guide--panduan-penggunaan">🚀 Panduan Penggunaan</a> •
     <a href="#-fitur-utama">✨ Fitur Utama</a> •
-    <a href="#-kompilasi--build">🛠️ Cara Build</a> •
+    <a href="#️-panduan-instalasi--setup-untuk-programmer-baru">🛠️ Panduan Developer</a> •
     <a href="#-undangan-kontribusi-call-for-contribution">🤝 Kontribusi</a> •
     <a href="#-lisensi">📄 Lisensi</a>
   </p>
@@ -172,6 +172,13 @@ flowchart TD
      * **Satukan langsung ke format PDF**: Mengompilasi gambar terjemahan langsung menjadi file PDF siap baca.
   5. Vision LLM (`server_agent` + `model_penggunaan`) akan memindai tiap halaman, mendeteksi lokasi balon teks, menghapus teks asli, lalu mengetikkan teks terjemahan secara rapi dan otomatis menyesuaikan ukuran font.
 
+#### ⚠️ Keterbatasan & Batasan Fungsi Translasi:
+* **Kebutuhan Model Vision (Multimodal)**: Fitur translasi memerlukan model AI yang mendukung input gambar (*Vision*). Model berbasis teks saja tidak dapat mengenali posisi balon teks. Model gratis di OpenRouter dapat berubah ketersediaannya sewaktu-waktu atau terkena batas kuota (aplikasi sudah dilengkapi sistem failover otomatis ke model cadangan di Tab 6).
+* **Pembersihan Latar Belakang (In-Painting)**: Hasil paling optimal didapatkan pada balon percakapan standar dengan latar putih atau warna polos. Teks yang tertulis langsung di atas ilustrasi rumit, efek bayangan gelap, screentone, atau gradasi (*text over art*) dapat meninggalkan bekas masking solid.
+* **Efek Suara Gambar / SFX (Onomatopoeia)**: Tulisan efek suara artistik (*hand-drawn SFX* / huruf Jepang katakana di luar balon dialog) biasanya dilewati oleh sistem dan tidak diterjemahkan agar tidak merusak artwork manga.
+* **Orientasi Teks Vertikal vs Horizontal**: Teks manga asli Jepang umumnya tersusun vertikal dari atas ke bawah. Teks terjemahan (Indonesia/Inggris) ditulis horizontal dari kiri ke kanan. Pada balon dialog vertikal yang sangat sempit, penyesuaian font otomatis (*auto-scaling*) akan mengecilkan ukuran huruf agar seluruh kalimat tetap muat di dalam kotak dialog.
+* **Latensi Jaringan & Ukuran Gambar**: Tiap gambar halaman dikirim dalam bentuk Base64 ke server AI. Kecepatan penerjemahan bergantung pada koneksi internet dan kecepatan respons model AI (rata-rata 2–5 detik per halaman). Format webtoon memanjang (*long strip*) membutuhkan pemrosesan lebih lama dibandingkan halaman buku komik standar.
+
 ---
 
 ### 5. Menggunakan Fitur AI Hub (Tab 4, 5, & 6)
@@ -190,37 +197,185 @@ Aplikasi ini menyertakan panel evaluasi AI canggih berbasis SQLite untuk riset d
 
 ---
 
-## 💻 Kompilasi & Build dari Source Code
+## 🛠️ Panduan Instalasi & Setup untuk Programmer Baru
 
-Bagi Anda yang ingin memodifikasi atau mengompilasi kode program sendiri di lingkungan Windows:
+Selamat datang di tim pengembang **Manga Downloader**! Panduan ini disusun untuk memandu programmer yang baru pertama kali melakukan `git clone` agar dapat menyiapkan seluruh dependensi, mengompilasi kode sumber, dan menjalankan aplikasi secara lancar.
 
-### Prasyarat
-* Sistem Operasi: **Windows 10 / 11 (64-bit)**
-* Compiler: **MinGW-w64 (GCC)**
-* Pustaka Dependensi (tersedia via MSYS2 `pacman -S`):
-  * `mingw-w64-x86_64-curl`
-  * `mingw-w64-x86_64-sqlite3`
-  * `mingw-w64-x86_64-cjson`
+### 📋 Prasyarat & Kebutuhan Sistem
 
-### Langkah Build
+* **Sistem Operasi**: Windows 10 atau Windows 11 (arsitektur 64-bit direkomendasikan).
+* **Git**: [Git for Windows](https://git-scm.com/) terpasang dan dapat diakses dari Command Prompt atau PowerShell.
+* **Terminal**: Windows Terminal, Command Prompt (`cmd.exe`), atau PowerShell.
 
-1. Clone repositori ini:
-   ```bash
-   git clone https://github.com/gcmaniac/manga_downloader.git
-   cd manga_downloader
+---
+
+### 📦 Toolchain Kompilasi & Pustaka Dependensi
+
+Manga Downloader dibangun menggunakan standar bahasa **C99 murni** dan **Win32 API native** tanpa framework berat. Untuk mengompilasinya di Windows, Anda memerlukan toolchain **MSYS2 MinGW-w64 (64-bit)**.
+
+#### 1. Daftar Paket & Library yang Dibutuhkan
+
+| Nama Paket MSYS2 | Kegunaan | Perintah Instalasi |
+| :--- | :--- | :--- |
+| **`mingw-w64-x86_64-toolchain`** | GNU C Compiler (`gcc`), Resource Compiler (`windres`), Binutils, Make | `pacman -S mingw-w64-x86_64-toolchain` |
+| **`mingw-w64-x86_64-curl`** | Komunikasi jaringan HTTP/HTTPS, custom headers, referer anti-hotlink | `pacman -S mingw-w64-x86_64-curl` |
+| **`mingw-w64-x86_64-sqlite3`** | Basis data model AI, pencatatan latensi, dan statistik performa | `pacman -S mingw-w64-x86_64-sqlite3` |
+| **`mingw-w64-x86_64-cjson`** | Parser JSON ringan untuk API OpenRouter dan file bahasa i18n | `pacman -S mingw-w64-x86_64-cjson` |
+| **Windows Native SDK** | Win32 GUI (`comctl32`), GDI (`gdi32`), WIC (`windowscodecs`), Shell (`shell32`), COM (`ole32`, `oleaut32`) | Sudah terpasang otomatis bersama MinGW CRT & Windows |
+
+---
+
+### 🚀 Panduan Langkah-demi-Langkah Instalasi (First Clone)
+
+Ikuti langkah-langkah di bawah ini secara berurutan:
+
+#### Langkah 1: Unduh dan Pasang MSYS2
+1. Unduh installer MSYS2 dari situs resminya: **[https://www.msys2.org/](https://www.msys2.org/)**.
+2. Pasang ke direktori default yang disarankan: `C:\msys64`.
+
+#### Langkah 2: Pasang Compiler Toolchain & Libraries
+Buka terminal **MSYS2 MinGW x64** (cari *"MSYS2 MinGW 64-bit"* di Windows Start Menu), lalu jalankan perintah berikut:
+```bash
+pacman -Syu --noconfirm
+pacman -S --needed --noconfirm base-devel mingw-w64-x86_64-toolchain mingw-w64-x86_64-curl mingw-w64-x86_64-sqlite3 mingw-w64-x86_64-cjson
+```
+
+#### Langkah 3: Tambahkan MinGW64 ke System PATH Windows
+Agar skrip `build.bat` dan Command Prompt / PowerShell mengenali perintah `gcc` dan `windres`:
+1. Tekan tombol `Win + R`, ketik `sysdm.cpl`, lalu tekan Enter.
+2. Masuk ke tab **Advanced** -> klik tombol **Environment Variables**.
+3. Pada bagian **System variables** (atau **User variables**), pilih variabel `Path` lalu klik **Edit**.
+4. Klik tombol **New** dan tambahkan path berikut:
+   ```text
+   C:\msys64\mingw64\bin
    ```
-
-2. Jalankan skrip build otomatis:
+5. Klik **OK** pada semua jendela dialog untuk menyimpan perubahan.
+6. Buka jendela Command Prompt (`cmd.exe`) atau PowerShell baru, lalu verifikasi:
    ```cmd
-   build.bat
+   gcc --version
+   windres --version
    ```
-   *Skrip ini akan mengompilasi resource icon (`resources.rc`) menggunakan `windres` dan membangun `manga_downloader.exe` dengan optimasi `-O2`.*
+   *(Pastikan kedua perintah menampilkan versi GCC dan GNU Binutils 12+ atau 13+).*
 
-3. Mengemas versi Portable Standalone:
-   ```cmd
-   package.bat
-   ```
-   *Skrip ini akan menyalin seluruh DLL yang diperlukan dari direktori MinGW dan membungkusnya ke dalam file `dist/manga_downloader_portable.zip`.*
+#### Langkah 4: Clone Repositori Git
+Clone repositori ke komputer Anda dan masuk ke direktori proyek:
+```cmd
+git clone https://github.com/gcmaniac/manga_downloader.git
+cd manga_downloader
+```
+
+#### Langkah 5: Kompilasi Proyek
+Jalankan skrip build otomatis:
+```cmd
+build.bat
+```
+
+Apa yang dilakukan oleh `build.bat` secara otomatis:
+1. **Deteksi Otomatis Lingkungan**: Mencari compiler GCC di `PATH` dan direktori umum MSYS2 (`C:\msys64\mingw64`, `D:\msys64\mingw64`, `E:\msys64\mingw64`).
+2. **Kompilasi Resources**: Mengompilasi `resources.rc` menjadi `dist\resources.o` yang berisi ikon resolusi tinggi dan manifest Windows Modern Controls.
+3. **Kompilasi Modul C**: Mengompilasi semua file sumber C di `src/` dan `src/scrapers/` dengan optimasi `-Wall -O2` menjadi `dist\manga_downloader.exe`.
+4. **Penyalinan File Runtime**: Otomatis menyalin semua file DLL pendukung (`libcurl-4.dll`, `libsqlite3-0.dll`, `libcjson-1.dll`, dll.), folder file bahasa (`src\lang\*.json`), dan database SQLite ke dalam folder `dist\`.
+
+#### Langkah 6: Jalankan dan Uji Coba Aplikasi
+Setelah kompilasi selesai, aplikasi siap dijalankan:
+* Menggunakan skrip peluncur 1-klik:
+  ```cmd
+  Jalankan_App.bat
+  ```
+* Atau jalankan file binary secara langsung:
+  ```cmd
+  dist\manga_downloader.exe
+  ```
+
+---
+
+### 🏗️ Struktur Direktori & Arsitektur Kode Sumber
+
+Peta struktur direktori untuk mempermudah Anda menjelajahi basis kode:
+
+```text
+manga_downloader/
+├── assets/                    # Aset grafis (banner, icon aplikasi .ico & .png)
+├── dist/                      # Direktori output build (executable, DLL runtime, DB SQLite, lang/)
+│   ├── manga_downloader.exe   # Binary aplikasi Windows native dinamis
+│   ├── manga_downloader.db    # Database SQLite tersemat (katalog & benchmark model AI)
+│   ├── config.ini             # Konfigurasi aplikasi (bahasa terpilih, API key, folder unduhan)
+│   └── lang/                  # File JSON lokalisasi bahasa terdistribusi
+├── downloads/                 # Folder tujuan default hasil download chapter manga
+├── src/                       # Kode sumber utama aplikasi (C99 / Win32)
+│   ├── main.c                 # Entry point Win32 GUI, Tab control, event loop, worker thread
+│   ├── ai_agent.c             # AI Hub, klien OpenRouter API, benchmark latensi, failover model
+│   ├── pdf_converter.c        # Mesin rendering PDF native Windows GDI/WIC (per chapter & per volume)
+│   ├── manga_translator.c     # Pipeline translasi Vision LLM, deteksi bubble & typesetting teks
+│   ├── db_migration.c         # Skema inisialisasi dan migrasi tabel SQLite
+│   ├── config.c               # Pemuat dan penyimpan konfigurasi portabel (config.ini)
+│   ├── lang.c                 # Pemuat internasionalisasi multi-bahasa (JSON i18n)
+│   ├── lang/                  # File definisi bahasa sumber
+│   │   ├── id.json            # String bahasa Indonesia
+│   │   ├── en.json            # String bahasa Inggris
+│   │   └── ja.json            # String bahasa Jepang
+│   └── scrapers/              # Modul parser scraper situs manga
+│       ├── scrapers.h         # Definisi tipe dan antarmuka standar scraper
+│       ├── scrapers.c         # Dispatcher scraper dan fungsi utilitas HTML parser bersama
+│       ├── scraper_manganato.c# Parser untuk portal Manganato & MangaKakalot
+│       ├── scraper_mgeko.c    # Parser untuk portal MangaGeko
+│       ├── scraper_asura.c    # Parser untuk portal Asura Scans
+│       └── scraper_generic.c  # Parser heuristik universal untuk web reader umum lainnya
+├── build.bat                  # Skrip utama kompilasi Windows
+├── package.bat                # Skrip pembuat arsip distribusi portable ZIP
+├── Jalankan_App.bat           # Skrip peluncur instan 1-klik
+├── resources.rc               # Resource Windows (ikon aplikasi & manifest styles)
+└── LICENSE                    # Lisensi Open Source MIT
+```
+
+---
+
+### ⚙️ Target Build Lanjutan
+
+| Perintah | Output | Keterangan |
+| :--- | :--- | :--- |
+| `build.bat` | `dist\manga_downloader.exe` | Kompilasi dinamis standar bersama file DLL. Sangat cepat (~3-5 detik). |
+| `build.bat --static` | `dist\manga_downloader_standalone.exe` | Binary mandiri (*standalone*) statis penuh. Semua dependensi di-link secara statis tanpa butuh DLL eksternal. |
+| `build.bat --no-pause` | `dist\manga_downloader.exe` | Kompilasi tanpa jeda konfirmasi (cocok untuk skrip otomatisasi / CI). |
+| `package.bat` | `dist\manga_downloader_portable.zip` | Mengompilasi dan mengemas seluruh distribusi portabel siap edar. |
+
+---
+
+### 🧩 Panduan Mengembangkan & Menambah Fitur Baru
+
+#### Menambahkan Parser / Scraper Situs Baru:
+1. Buat file sumber baru di `src/scrapers/scraper_<namasitus>.c`.
+2. Implementasikan fungsi ekstraksi list chapter dan link gambar sesuai kontrak struct `ScraperEngine` pada `src/scrapers/scrapers.h`.
+3. Daftarkan scraper baru pada dispatcher di `src/scrapers/scrapers.c` dan detektor URL di `src/main.c`.
+4. Tambahkan file `.c` baru tersebut ke dalam variabel `set SRCS=...` di `build.bat`.
+
+#### Menambahkan Terjemahan Bahasa GUI Baru:
+1. Buat file JSON baru di `src/lang/<kode>.json` (misal `es.json` untuk Bahasa Spanyol).
+2. Terjemahkan pasangan key-value sesuai struktur referensi di `src/lang/en.json`.
+3. Daftarkan kode bahasa baru ke dalam daftar bahasa di `src/lang.c` dan UI pilihan bahasa di `src/main.c`.
+
+---
+
+### ❓ Solusi Masalah Umum (Troubleshooting)
+
+#### 1. Perintah `'gcc'` atau `'windres'` tidak dikenali (*not recognized*)
+* **Penyebab**: Folder `bin` MinGW belum dimasukkan ke variabel lingkungan `PATH` Windows.
+* **Solusi**: Tambahkan `C:\msys64\mingw64\bin` ke `PATH` Windows dan buka ulang jendela command prompt.
+
+#### 2. Error `fatal error: curl/curl.h: No such file or directory` (atau `sqlite3.h` / `cjson/cJSON.h`)
+* **Penyebab**: Paket library pengembangan belum terpasang di MSYS2.
+* **Solusi**: Buka terminal MSYS2 MinGW 64-bit dan jalankan:
+  ```bash
+  pacman -S mingw-w64-x86_64-curl mingw-w64-x86_64-sqlite3 mingw-w64-x86_64-cjson
+  ```
+
+#### 3. Error file DLL tidak ditemukan saat aplikasi dijalankan
+* **Penyebab**: Menjalankan file `.exe` di luar folder `dist/` tempat DLL runtime berada.
+* **Solusi**: Jalankan aplikasi dari dalam folder `dist/` atau gunakan file `Jalankan_App.bat`.
+
+#### 4. Respon AI mengalami error atau `unavailable for free`
+* **Penyebab**: Tier ketersediaan model pada penyedia OpenRouter berubah atau terkena pembatasan kuota sementara.
+* **Solusi**: Buka Tab 4 untuk memindai ulang model atau pilih model alternatif di Tab 5/6. Fitur failover otomatis pada aplikasi akan secara pintar mengalihkan permintaan ke kandidat model aktif berikutnya.
 
 ---
 
@@ -236,12 +391,13 @@ Bagi Anda yang ingin memodifikasi atau mengompilasi kode program sendiri di ling
 Kami sangat membuka pintu selebar-lebarnya bagi siapa saja—baik pemula, antusias bahasa C, maupun pengembang berpengalaman—untuk ikut serta mengembangkan **Manga Downloader**!
 
 ### 💡 Ide Kontribusi yang Sangat Dinantikan:
-- [ ] **Penambahan Scraper Baru**: Menambahkan dukungan parser untuk situs baca manga berbahasa Indonesia atau portal manga internasional lainnya ke dalam [src/main.c](file:///d:/c_projects/manga_downloader/src/main.c).
-- [ ] **Fitur Export CBZ / PDF**: Menggabungkan file gambar tiap chapter menjadi arsip komik `.cbz` atau dokumen `.pdf` langsung dari aplikasi.
+- [x] **Penambahan Scraper Baru**: Didukung bawaan untuk MangaGeko, MangaNato, dan Asura Scans. (Dukungan portal lain sangat dinantikan!)
+- [x] **Fitur Export PDF**: Ekspor PDF per chapter dan per volume secara cepat dengan penataan folder otomatis.
+- [x] **AI-Powered Visual Translator**: Pipeline Vision LLM untuk deteksi balon percakapan, penghapusan teks asli, dan perapian teks terjemahan otomatis.
+- [x] **Lokalisasi Bahasa GUI**: Dukungan multi-bahasa antarmuka (Bahasa Indonesia, English, 日本語) berbasis file JSON.
 - [ ] **Multi-threaded Worker Pool**: Mempercepat proses download dengan mengunduh beberapa gambar atau chapter secara paralel secara simultan.
 - [ ] **Dark Mode Win32 Theme**: Menambahkan opsi tema gelap native Windows yang elegan.
-- [ ] **AI-Powered OCR / Translator**: Mengintegrasikan model AI yang ada di Tab AI Hub untuk menerjemahkan balon teks manga secara langsung.
-- [ ] **Lokalisasi Bahasa**: Dukungan multi-bahasa (Bahasa Indonesia, English, 日本語) pada antarmuka GUI.
+- [ ] **Ekspor Komik CBZ**: Pilihan pembuatan arsip komik `.cbz` langsung selain dokumen PDF.
 
 ### 🛠️ Alur Mengirimkan Kontribusi (Pull Request):
 1. **[Fork](https://github.com/gcmaniac/manga_downloader/fork)** repositori ini ke akun GitHub Anda.

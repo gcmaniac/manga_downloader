@@ -16,7 +16,7 @@
   </p>
 
   <p align="center">
-    <a href="README.en.md"><img src="https://img.shields.io/badge/Language-English-blue?style=for-the-badge" alt="English" /></a>
+    <a href="README.md"><img src="https://img.shields.io/badge/Language-English-blue?style=for-the-badge" alt="English" /></a>
     <a href="README.id.md"><img src="https://img.shields.io/badge/Language-Bahasa_Indonesia-lightgrey?style=for-the-badge" alt="Bahasa Indonesia" /></a>
   </p>
 
@@ -24,11 +24,11 @@
     <a href="https://github.com/gcmaniac/manga_downloader"><img src="https://img.shields.io/badge/Author-gcmaniac-orange?style=for-the-badge&logo=github" alt="Author gcmaniac" /></a>
     <a href="https://github.com/gcmaniac/manga_downloader/stargazers"><img src="https://img.shields.io/github/stars/gcmaniac/manga_downloader?style=for-the-badge&logo=github&color=ff69b4" alt="GitHub Stars" /></a>
     <a href="#-key-features"><img src="https://img.shields.io/badge/Status-Active_Production-brightgreen?style=for-the-badge&logo=visual-studio-code" alt="Status" /></a>
-    <a href="#-compilation--building-from-source"><img src="https://img.shields.io/badge/Language-C99_Win32-00599C?style=for-the-badge&logo=c" alt="Language" /></a>
-    <a href="#-compilation--building-from-source"><img src="https://img.shields.io/badge/Network-libcurl-blue?style=for-the-badge&logo=curl" alt="libcurl" /></a>
-    <a href="#-compilation--building-from-source"><img src="https://img.shields.io/badge/Database-SQLite3-003B57?style=for-the-badge&logo=sqlite" alt="SQLite3" /></a>
+    <a href="#️-developer-onboarding--installation-guide"><img src="https://img.shields.io/badge/Language-C99_Win32-00599C?style=for-the-badge&logo=c" alt="Language" /></a>
+    <a href="#️-developer-onboarding--installation-guide"><img src="https://img.shields.io/badge/Network-libcurl-blue?style=for-the-badge&logo=curl" alt="libcurl" /></a>
+    <a href="#️-developer-onboarding--installation-guide"><img src="https://img.shields.io/badge/Database-SQLite3-003B57?style=for-the-badge&logo=sqlite" alt="SQLite3" /></a>
     <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge" alt="License" /></a>
-    <a href="#-compilation--building-from-source"><img src="https://img.shields.io/badge/Platform-Windows_10_%2F_11-0078D6?style=for-the-badge&logo=windows" alt="Platform" /></a>
+    <a href="#️-developer-onboarding--installation-guide"><img src="https://img.shields.io/badge/Platform-Windows_10_%2F_11-0078D6?style=for-the-badge&logo=windows" alt="Platform" /></a>
   </p>
 
   <p align="center">
@@ -36,7 +36,7 @@
     <a href="#-system-architecture--workflow">🔄 Workflow</a> •
     <a href="#-user-guide">🚀 User Guide</a> •
     <a href="#-key-features">✨ Key Features</a> •
-    <a href="#-compilation--building-from-source">🛠️ How to Build</a> •
+    <a href="#️-developer-onboarding--installation-guide">🛠️ Developer Guide</a> •
     <a href="#-call-for-contributions">🤝 Contributing</a> •
     <a href="#-license">📄 License</a>
   </p>
@@ -172,6 +172,13 @@ flowchart TD
      * **Compile to PDF directly**: Automatically merges the translated pages into a clean chapter PDF book.
   5. The Vision LLM (`server_agent` + `model_penggunaan`) reads each page, identifies bubble locations, masks out the original text, and typesets the new translated text neatly with auto-fitted fonts.
 
+#### ⚠️ Known Limitations & Constraints of the Translation Pipeline:
+* **Vision Model Requirement**: Requires a Multimodal/Vision-capable LLM registered in your active model roster. Text-only models cannot detect speech bubbles. Free models on OpenRouter may experience rate limits, price changes, or temporary downtime (the app includes automatic failover to fallback models in Tab 6).
+* **Speech Bubble In-Painting**: Works best on standard speech bubbles with white or uniform solid backgrounds. Text placed directly over intricate art, dark shading, screentones, or gradient backgrounds (*text over art*) may result in visible solid masking patches.
+* **Hand-Drawn SFX / Onomatopoeia**: Stylized sound effects (Japanese *sfx*, *katakana* drawn across action panels) are not standard dialogue bubbles and are typically skipped by the detector.
+* **Vertical vs. Horizontal Typesetting**: Traditional Japanese manga uses vertical text flow (top-to-bottom). Target translations (English/Indonesian) are typeset horizontally (LTR). On tall, extremely narrow vertical bubbles, font size auto-scaling may decrease font dimensions to ensure text fits within the bounding box.
+* **Network & Image Latency**: Each page is transmitted as Base64 to the Vision LLM endpoint. Processing speed depends on your internet bandwidth and the selected model's inference speed (typically 2–5 seconds per page). Very long continuous webtoon strips may require downscaling or take longer to process.
+
 ---
 
 ### 5. Exploring the AI Hub (Tabs 4, 5, & 6)
@@ -190,37 +197,185 @@ The application includes an advanced SQLite-powered AI evaluation workspace for 
 
 ---
 
-## 💻 Compilation & Building from Source
+## 🛠️ Developer Onboarding & Installation Guide
 
-For developers looking to inspect, customize, or compile the source code on Windows:
+Welcome to the **Manga Downloader** development team! This guide walks you through setting up a complete native C Windows development environment from a clean `git clone` to running and modifying the application.
 
-### Prerequisites
-* Operating System: **Windows 10 / 11 (64-bit)**
-* C Compiler: **MinGW-w64 (GCC)**
-* Library Dependencies (available via MSYS2 `pacman -S`):
-  * `mingw-w64-x86_64-curl`
-  * `mingw-w64-x86_64-sqlite3`
-  * `mingw-w64-x86_64-cjson`
+### 📋 Prerequisites & System Requirements
 
-### Build Instructions
+* **Operating System**: Windows 10 or Windows 11 (64-bit recommended).
+* **Git**: [Git for Windows](https://git-scm.com/) installed and available in Command Prompt or PowerShell.
+* **Terminal**: Windows Terminal, Command Prompt (`cmd.exe`), or PowerShell.
 
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/gcmaniac/manga_downloader.git
-   cd manga_downloader
+---
+
+### 📦 Development Toolchain & Dependencies
+
+Manga Downloader is built with **pure C99** targeting native **Win32 API** without heavy frameworks. To compile, you need the **MSYS2 MinGW-w64 (64-bit)** toolchain.
+
+#### 1. Required Libraries & Packages
+
+| Package Name | Purpose | Installation Command |
+| :--- | :--- | :--- |
+| **`mingw-w64-x86_64-toolchain`** | GNU C Compiler (`gcc`), Resource Compiler (`windres`), Binutils, Make | `pacman -S mingw-w64-x86_64-toolchain` |
+| **`mingw-w64-x86_64-curl`** | Network fetching, custom headers, referer spoofing, anti-hotlinking | `pacman -S mingw-w64-x86_64-curl` |
+| **`mingw-w64-x86_64-sqlite3`** | AI model catalog database, latency benchmarks, ratings storage | `pacman -S mingw-w64-x86_64-sqlite3` |
+| **`mingw-w64-x86_64-cjson`** | Ultra-lightweight JSON parser for OpenRouter API & i18n language files | `pacman -S mingw-w64-x86_64-cjson` |
+| **Windows Native SDK** | Win32 GUI (`comctl32`), GDI (`gdi32`), WIC (`windowscodecs`), Shell (`shell32`), COM (`ole32`, `oleaut32`) | Pre-installed with MinGW CRT & Windows |
+
+---
+
+### 🚀 Step-by-Step Installation for New Developers
+
+Follow these exact steps when cloning this repository for the first time:
+
+#### Step 1: Install MSYS2
+1. Download and install MSYS2 from the official website: **[https://www.msys2.org/](https://www.msys2.org/)**.
+2. Recommended installation path: `C:\msys64` (default).
+
+#### Step 2: Install Compiler Toolchain & Libraries
+Open the **MSYS2 MinGW x64** terminal (search for *"MSYS2 MinGW 64-bit"* in Windows Start Menu) and run:
+```bash
+pacman -Syu --noconfirm
+pacman -S --needed --noconfirm base-devel mingw-w64-x86_64-toolchain mingw-w64-x86_64-curl mingw-w64-x86_64-sqlite3 mingw-w64-x86_64-cjson
+```
+
+#### Step 3: Add MinGW64 to Windows System PATH
+To allow `build.bat` and Windows CMD/PowerShell to find `gcc` and `windres`:
+1. Press `Win + R`, type `sysdm.cpl`, and press Enter.
+2. Navigate to the **Advanced** tab -> click **Environment Variables**.
+3. Under **System variables** (or **User variables**), select `Path` and click **Edit**.
+4. Click **New** and add:
+   ```text
+   C:\msys64\mingw64\bin
    ```
-
-2. Run the automated build script:
+5. Click **OK** on all windows to apply.
+6. Open a fresh Command Prompt (`cmd.exe`) or PowerShell and verify:
    ```cmd
-   build.bat
+   gcc --version
+   windres --version
    ```
-   *This compiles the application icon and resource file (`resources.rc`) via `windres`, then compiles `manga_downloader.exe` with `-O2` optimizations.*
+   *(Both commands should report GCC and GNU Binutils version 12+ or 13+).*
 
-3. Package a Standalone Portable Release:
-   ```cmd
-   package.bat
-   ```
-   *This script bundles all required runtime DLLs from your MinGW environment and packages them into `dist/manga_downloader_portable.zip`.*
+#### Step 4: Clone the Repository
+Clone the repository using Git and navigate into the project root:
+```cmd
+git clone https://github.com/gcmaniac/manga_downloader.git
+cd manga_downloader
+```
+
+#### Step 5: Build the Application
+Run the automated build script:
+```cmd
+build.bat
+```
+
+What `build.bat` executes under the hood:
+1. **Auto-Detects Environment**: Inspects system `PATH` and common MSYS2 installation directories (`C:\msys64\mingw64`, `D:\msys64\mingw64`, `E:\msys64\mingw64`).
+2. **Compiles Resources**: Generates `dist\resources.o` from `resources.rc` containing high-res icons and Windows Visual Styles manifest.
+3. **Compiles C Modules**: Compiles all source files in `src/` and `src/scrapers/` using `-Wall -O2` optimization into `dist\manga_downloader.exe`.
+4. **Deploys Runtime Dependencies**: Automatically copies required runtime DLLs (`libcurl-4.dll`, `libsqlite3-0.dll`, `libcjson-1.dll`, etc.), language JSON files (`src\lang\*.json`), and the SQLite database into `dist\`.
+
+#### Step 6: Launch & Verify
+You can immediately launch the application:
+* Using the launcher script:
+  ```cmd
+  Jalankan_App.bat
+  ```
+* Or launching directly from the distribution directory:
+  ```cmd
+  dist\manga_downloader.exe
+  ```
+
+---
+
+### 🏗️ Project Architecture & Directory Structure
+
+To help you navigate the codebase quickly:
+
+```text
+manga_downloader/
+├── assets/                    # Graphical assets (banners, app logo .ico, .png)
+├── dist/                      # Build output folder (executable, runtime DLLs, SQLite DB, lang/)
+│   ├── manga_downloader.exe   # Compiled dynamic Win32 executable
+│   ├── manga_downloader.db    # Embedded SQLite database (AI models & benchmarks)
+│   ├── config.ini             # App configuration (selected language, API keys, download folder)
+│   └── lang/                  # Deployed localization JSON files
+├── downloads/                 # Default destination folder for downloaded chapters
+├── src/                       # Application source code (C99 / Win32)
+│   ├── main.c                 # Win32 GUI, Tab control, event loops, worker threads
+│   ├── ai_agent.c             # AI Hub, OpenRouter API client, latency benchmark, failover engine
+│   ├── pdf_converter.c        # Native Windows GDI/WIC PDF rendering engine (chapter & volume)
+│   ├── manga_translator.c     # Vision LLM translation pipeline, bubble detection & typesetting
+│   ├── db_migration.c         # SQLite database schema migration and initialization
+│   ├── config.c               # Portable settings loader & saver (config.ini)
+│   ├── lang.c                 # Multi-language internationalization loader (JSON i18n)
+│   ├── lang/                  # Source language definition files
+│   │   ├── id.json            # Indonesian language strings
+│   │   ├── en.json            # English language strings
+│   │   └── ja.json            # Japanese language strings
+│   └── scrapers/              # Modular scraper engine parsers
+│       ├── scrapers.h         # Common scraper interface, types, and definitions
+│       ├── scrapers.c         # Scraper dispatcher and shared HTML parsing utilities
+│       ├── scraper_manganato.c# Parser for Manganato & MangaKakalot
+│       ├── scraper_mgeko.c    # Parser for MangaGeko
+│       ├── scraper_asura.c    # Parser for Asura Scans
+│       └── scraper_generic.c  # Universal heuristic scraper for unlisted web readers
+├── build.bat                  # Primary Windows compilation script
+├── package.bat                # Portable ZIP bundler script
+├── Jalankan_App.bat           # 1-Click launcher script
+├── resources.rc               # Windows application resource file (app icon & manifest)
+└── LICENSE                    # Open Source MIT License
+```
+
+---
+
+### ⚙️ Build Options & Advanced Targets
+
+| Command | Output | Description |
+| :--- | :--- | :--- |
+| `build.bat` | `dist\manga_downloader.exe` | Standard dynamic build with bundled DLLs. Fast compile time (~3-5s). |
+| `build.bat --static` | `dist\manga_downloader_standalone.exe` | Fully static standalone binary. Contains all libraries statically linked. Zero external DLL dependencies. |
+| `build.bat --no-pause` | `dist\manga_downloader.exe` | Build without prompt pause (ideal for CI/CD or automated scripts). |
+| `package.bat` | `dist\manga_downloader_portable.zip` | Compiles and packages the entire portable release ready for distribution. |
+
+---
+
+### 🧩 How to Add New Features (Contribute)
+
+#### Adding a New Scraper:
+1. Create a new source file in `src/scrapers/scraper_<sitename>.c`.
+2. Implement chapter extraction and image URL extraction functions adhering to `ScraperEngine` in `src/scrapers/scrapers.h`.
+3. Register the scraper in `src/scrapers/scrapers.c` and in the URL detector in `src/main.c`.
+4. Add the new source file to `set SRCS=...` in `build.bat`.
+
+#### Adding a New Interface Language:
+1. Create a new translation file `src/lang/<code>.json` (e.g., `es.json` for Spanish).
+2. Translate the string keys matching `src/lang/en.json`.
+3. Register the new language code in `src/lang.c` and `src/main.c`.
+
+---
+
+### ❓ Troubleshooting & Common Build Issues
+
+#### 1. `'gcc' is not recognized as an internal or external command`
+* **Cause**: MinGW `bin` directory is missing from your system `PATH`.
+* **Fix**: Ensure `C:\msys64\mingw64\bin` is added to your environment `PATH` and restart your terminal.
+
+#### 2. `fatal error: curl/curl.h: No such file or directory` (or `sqlite3.h` / `cjson/cJSON.h`)
+* **Cause**: Required development headers are missing.
+* **Fix**: Open MSYS2 MinGW 64-bit terminal and run:
+  ```bash
+  pacman -S mingw-w64-x86_64-curl mingw-w64-x86_64-sqlite3 mingw-w64-x86_64-cjson
+  ```
+
+#### 3. Application crashes or complains about missing DLLs on launch
+* **Cause**: Running `manga_downloader.exe` outside the `dist/` directory where runtime DLLs reside.
+* **Fix**: Always execute from the `dist/` directory or run using `Jalankan_App.bat`.
+
+#### 4. Model requests fail or return `unavailable for free`
+* **Cause**: OpenRouter model tier changes or temporary rate limiting.
+* **Fix**: Use Tab 4 to rescan models or pick an available active model in Tab 5/6. The built-in failover engine will automatically fall back to the next registered active model.
 
 ---
 
@@ -236,12 +391,13 @@ For developers looking to inspect, customize, or compile the source code on Wind
 We warmly welcome contributions from everyone—beginners, C enthusiasts, and seasoned developers alike—to help shape **Manga Downloader**!
 
 ### 💡 Ideas & Areas for Contribution:
-- [ ] **New Site Scrapers**: Add parsers for additional popular manga portals or localized scanlation sites into `src/scrapers/`.
-- [ ] **CBZ / PDF Export**: Bundle downloaded chapter images into comic archive `.cbz` files or `.pdf` e-books directly from the GUI.
+- [x] **New Site Scrapers**: Built-in support for MangaGeko, MangaNato, and Asura Scans. (More sites welcome!)
+- [x] **PDF Export**: Native high-speed PDF creation per-chapter and per-volume with automatic chapter organization.
+- [x] **AI-Powered OCR & Visual Translator**: Vision LLM pipeline with bubble detection, text removal, and in-place translation typesetting.
+- [x] **GUI Localization**: Multi-language support (English, Indonesian, Japanese) loaded dynamically from JSON.
 - [ ] **Multi-threaded Worker Pool**: Accelerate downloads by fetching multiple images or chapters in parallel.
 - [ ] **Dark Mode Win32 Theme**: Implement a sleek, native dark theme for the Win32 window and controls.
-- [ ] **AI-Powered OCR & Translator**: Integrate AI models from the AI Hub tab to detect and translate manga speech bubbles directly.
-- [ ] **GUI Localization**: Add multi-language interface support (English, Bahasa Indonesia, 日本語) within the native GUI.
+- [ ] **CBZ Comic Archive Export**: Direct zip/cbz compression option alongside PDF.
 
 ### 🛠️ Contribution Workflow (Pull Request):
 1. **[Fork](https://github.com/gcmaniac/manga_downloader/fork)** this repository to your GitHub account.

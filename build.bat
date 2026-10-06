@@ -6,21 +6,42 @@ set "DIST_DIR=%~dp0dist"
 if not exist "%DIST_DIR%" mkdir "%DIST_DIR%"
 
 rem Path to MinGW gcc and windres
-if exist "D:\msys64\mingw64\bin\gcc.exe" (
+if exist "C:\msys64\mingw64\bin\gcc.exe" (
+    set "CC=C:\msys64\mingw64\bin\gcc.exe"
+    set "WINDRES=C:\msys64\mingw64\bin\windres.exe"
+    set "MSYS_BIN=C:\msys64\mingw64\bin"
+    set "INCDIR=C:\msys64\mingw64\include"
+    set "LIBDIR=C:\msys64\mingw64\lib"
+) else if exist "D:\msys64\mingw64\bin\gcc.exe" (
     set "CC=D:\msys64\mingw64\bin\gcc.exe"
     set "WINDRES=D:\msys64\mingw64\bin\windres.exe"
     set "MSYS_BIN=D:\msys64\mingw64\bin"
+    set "INCDIR=D:\msys64\mingw64\include"
+    set "LIBDIR=D:\msys64\mingw64\lib"
 ) else if exist "E:\msys64\mingw64\bin\gcc.exe" (
     set "CC=E:\msys64\mingw64\bin\gcc.exe"
     set "WINDRES=E:\msys64\mingw64\bin\windres.exe"
     set "MSYS_BIN=E:\msys64\mingw64\bin"
+    set "INCDIR=E:\msys64\mingw64\include"
+    set "LIBDIR=E:\msys64\mingw64\lib"
 ) else (
     set "CC=gcc"
     set "WINDRES=windres"
-    if exist "D:\msys64\mingw64\bin" (
+    if exist "C:\msys64\mingw64\bin" (
+        set "MSYS_BIN=C:\msys64\mingw64\bin"
+        set "INCDIR=C:\msys64\mingw64\include"
+        set "LIBDIR=C:\msys64\mingw64\lib"
+    ) else if exist "D:\msys64\mingw64\bin" (
         set "MSYS_BIN=D:\msys64\mingw64\bin"
+        set "INCDIR=D:\msys64\mingw64\include"
+        set "LIBDIR=D:\msys64\mingw64\lib"
     ) else if exist "E:\msys64\mingw64\bin" (
         set "MSYS_BIN=E:\msys64\mingw64\bin"
+        set "INCDIR=E:\msys64\mingw64\include"
+        set "LIBDIR=E:\msys64\mingw64\lib"
+    ) else (
+        set "INCDIR=."
+        set "LIBDIR=."
     )
 )
 
@@ -35,9 +56,17 @@ if %errorlevel% neq 0 (
 rem Compilation flags
 set CFLAGS=-Wall -O2
 
-rem Include and library directories
-set INCDIR=D:\msys64\mingw64\include
-set LIBDIR=D:\msys64\mingw64\lib
+rem Include and library flags (use explicit paths if detected, otherwise default compiler search)
+if not "%INCDIR%"=="." (
+    set "INC_FLAGS=-I%INCDIR%"
+) else (
+    set "INC_FLAGS="
+)
+if not "%LIBDIR%"=="." (
+    set "LIB_FLAGS=-L%LIBDIR%"
+) else (
+    set "LIB_FLAGS="
+)
 
 rem Source files
 set SRCS=src\main.c src\ai_agent.c src\pdf_converter.c src\manga_translator.c src\db_migration.c src\config.c src\lang.c src\scrapers\scrapers.c src\scrapers\scraper_manganato.c src\scrapers\scraper_mgeko.c src\scrapers\scraper_asura.c src\scrapers\scraper_generic.c
@@ -49,7 +78,7 @@ rem Linker flags (resources, libcurl, sqlite3, comctl32, cJSON, Unicode, Windows
 set LDFLAGS="%DIST_DIR%\resources.o" -lcurl -lsqlite3 -lcomctl32 -lcjson -municode -mwindows -lole32 -lshell32 -lwindowscodecs -loleaut32 -lgdi32
 
 echo [2/3] Compiling manga_downloader.exe into dist...
-%CC% %CFLAGS% -I%INCDIR% -L%LIBDIR% -o "%DIST_DIR%\manga_downloader.exe" %SRCS% %LDFLAGS%
+%CC% %CFLAGS% %INC_FLAGS% %LIB_FLAGS% -o "%DIST_DIR%\manga_downloader.exe" %SRCS% %LDFLAGS%
 
 if %errorlevel% neq 0 (
     echo Build failed with error code %errorlevel%.
@@ -60,7 +89,7 @@ goto post_build
 :build_static
 set STATIC_LDFLAGS="%DIST_DIR%\resources.o" -DCURL_STATICLIB -static -lcurl -lsqlite3 -lcjson -lssl -lcrypto -lnghttp2 -lnghttp3 -lngtcp2 -lngtcp2_crypto_ossl -lssh2 -lzstd -lbrotlidec -lbrotlicommon -lidn2 -lpsl -lunistring -lintl -liconv -lz -lcomctl32 -municode -mwindows -lole32 -lshell32 -lwindowscodecs -loleaut32 -lgdi32 -lws2_32 -lcrypt32 -lwldap32 -liphlpapi -lbcrypt -lsecur32 -s
 echo [2/3] Compiling manga_downloader_standalone.exe into dist (static)...
-%CC% %CFLAGS% -o "%DIST_DIR%\manga_downloader_standalone.exe" %SRCS% %STATIC_LDFLAGS%
+%CC% %CFLAGS% %INC_FLAGS% %LIB_FLAGS% -o "%DIST_DIR%\manga_downloader_standalone.exe" %SRCS% %STATIC_LDFLAGS%
 if %errorlevel% neq 0 (
     echo Static build failed with error code %errorlevel%.
     exit /b %errorlevel%

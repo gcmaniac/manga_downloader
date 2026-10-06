@@ -498,7 +498,7 @@ static int parse_volumes_from_text(const char *raw_text, VolumeMapItem *volumes,
 
             CURLcode res = curl_easy_perform(curl);
             curl_slist_free_all(headers);
-            free(payload);
+            cJSON_free(payload);
             curl_easy_cleanup(curl);
 
             if (res == CURLE_OK && chunk.data) {

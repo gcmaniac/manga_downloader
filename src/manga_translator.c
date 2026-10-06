@@ -224,22 +224,50 @@ static bool image_to_jpeg_buffer(const wchar_t *img_path, BYTE **out_buf, DWORD 
     *out_w = 0;
     *out_h = 0;
 
+    if (!img_path || img_path[0] == L'\0') return false;
+
+    // Fast-path: If the image is already a standard JPEG and under 2.5 MB, read directly from disk
+    const wchar_t *ext = wcsrchr(img_path, L'.');
+    if (ext && (_wcsicmp(ext, L".jpg") == 0 || _wcsicmp(ext, L".jpeg") == 0)) {
+        FILE *f = _wfopen(img_path, L"rb");
+        if (f) {
+            fseek(f, 0, SEEK_END);
+            long sz = ftell(f);
+            fseek(f, 0, SEEK_SET);
+            if (sz > 0 && sz <= 2621440) { // <= 2.5 MB
+                BYTE *b = (BYTE *)malloc(sz);
+                if (b) {
+                    if (fread(b, 1, sz, f) == (size_t)sz) {
+                        fclose(f);
+                        *out_buf = b;
+                        *out_size = (DWORD)sz;
+                        *out_w = 1000;
+                        *out_h = 1000;
+                        return true;
+                    }
+                    free(b);
+                }
+            }
+            fclose(f);
+        }
+    }
+
     IWICImagingFactory *pFactory = NULL;
     HRESULT hr = CoCreateInstance(&CLSID_WICImagingFactory, NULL, CLSCTX_INPROC_SERVER,
                                   &IID_IWICImagingFactory, (void **)&pFactory);
-    if (FAILED(hr)) return false;
+    if (FAILED(hr) || !pFactory) return false;
 
     IWICBitmapDecoder *pDecoder = NULL;
     hr = pFactory->lpVtbl->CreateDecoderFromFilename(
         pFactory, img_path, NULL, GENERIC_READ, WICDecodeMetadataCacheOnDemand, &pDecoder);
-    if (FAILED(hr)) {
+    if (FAILED(hr) || !pDecoder) {
         pFactory->lpVtbl->Release(pFactory);
         return false;
     }
 
     IWICBitmapFrameDecode *pFrame = NULL;
     hr = pDecoder->lpVtbl->GetFrame(pDecoder, 0, &pFrame);
-    if (FAILED(hr)) {
+    if (FAILED(hr) || !pFrame) {
         pDecoder->lpVtbl->Release(pDecoder);
         pFactory->lpVtbl->Release(pFactory);
         return false;
@@ -254,52 +282,133 @@ static bool image_to_jpeg_buffer(const wchar_t *img_path, BYTE **out_buf, DWORD 
     CreateStreamOnHGlobal(NULL, TRUE, &pStream);
 
     IWICBitmapEncoder *pEncoder = NULL;
-    pFactory->lpVtbl->CreateEncoder(pFactory, &GUID_ContainerFormatJpeg, NULL, &pEncoder);
+    hr = pFactory->lpVtbl->CreateEncoder(pFactory, &GUID_ContainerFormatJpeg, NULL, &pEncoder);
+    if (FAILED(hr) || !pEncoder) {
+        if (pStream) pStream->lpVtbl->Release(pStream);
+        pFrame->lpVtbl->Release(pFrame);
+        pDecoder->lpVtbl->Release(pDecoder);
+        pFactory->lpVtbl->Release(pFactory);
+        return false;
+    }
     pEncoder->lpVtbl->Initialize(pEncoder, pStream, WICBitmapEncoderNoCache);
 
     IWICBitmapFrameEncode *pFrameEncode = NULL;
     IPropertyBag2 *pProp = NULL;
     pEncoder->lpVtbl->CreateNewFrame(pEncoder, &pFrameEncode, &pProp);
 
-    PROPBAG2 opt = { 0 };
-    opt.pstrName = L"ImageQuality";
-    VARIANT var;
-    VariantInit(&var);
-    var.vt = VT_R4;
-    var.fltVal = 0.75f; // 75% quality for lightweight API transmission
-    if (pProp) pProp->lpVtbl->Write(pProp, 1, &opt, &var);
+    if (pFrameEncode) {
+        PROPBAG2 opt = { 0 };
+        opt.pstrName = L"ImageQuality";
+        VARIANT var;
+        VariantInit(&var);
+        var.vt = VT_R4;
+        var.fltVal = 0.75f;
+        if (pProp) pProp->lpVtbl->Write(pProp, 1, &opt, &var);
 
-    pFrameEncode->lpVtbl->Initialize(pFrameEncode, pProp);
-    pFrameEncode->lpVtbl->SetSize(pFrameEncode, w, h);
-    pFrameEncode->lpVtbl->WriteSource(pFrameEncode, (IWICBitmapSource *)pFrame, NULL);
-    pFrameEncode->lpVtbl->Commit(pFrameEncode);
-    pEncoder->lpVtbl->Commit(pEncoder);
+        pFrameEncode->lpVtbl->Initialize(pFrameEncode, pProp);
+        pFrameEncode->lpVtbl->SetSize(pFrameEncode, w, h);
+        pFrameEncode->lpVtbl->WriteSource(pFrameEncode, (IWICBitmapSource *)pFrame, NULL);
+        pFrameEncode->lpVtbl->Commit(pFrameEncode);
+        pEncoder->lpVtbl->Commit(pEncoder);
+        pFrameEncode->lpVtbl->Release(pFrameEncode);
+    }
 
-    HGLOBAL hMem = NULL;
-    GetHGlobalFromStream(pStream, &hMem);
-    if (hMem) {
-        SIZE_T s = GlobalSize(hMem);
-        void *ptr = GlobalLock(hMem);
-        if (ptr && s > 0) {
-            *out_buf = (BYTE *)malloc(s);
-            if (*out_buf) {
-                memcpy(*out_buf, ptr, s);
-                *out_size = (DWORD)s;
+    if (pStream) {
+        HGLOBAL hMem = NULL;
+        GetHGlobalFromStream(pStream, &hMem);
+        if (hMem) {
+            SIZE_T s = GlobalSize(hMem);
+            void *ptr = GlobalLock(hMem);
+            if (ptr && s > 0) {
+                *out_buf = (BYTE *)malloc(s);
+                if (*out_buf) {
+                    memcpy(*out_buf, ptr, s);
+                    *out_size = (DWORD)s;
+                }
+                GlobalUnlock(hMem);
             }
-            GlobalUnlock(hMem);
         }
+        pStream->lpVtbl->Release(pStream);
     }
 
     if (pProp) pProp->lpVtbl->Release(pProp);
-    pFrameEncode->lpVtbl->Release(pFrameEncode);
     pEncoder->lpVtbl->Release(pEncoder);
-    pStream->lpVtbl->Release(pStream);
     pFrame->lpVtbl->Release(pFrame);
     pDecoder->lpVtbl->Release(pDecoder);
     pFactory->lpVtbl->Release(pFactory);
 
     return (*out_buf != NULL && *out_size > 0);
 }
+
+// Update model rating and response time in SQLite database upon success/failure
+static void update_model_performance(const char *model_id, bool success, int response_time_ms) {
+    if (!model_id || model_id[0] == '\0') return;
+
+    wchar_t db_path_w[MAX_PATH];
+    db_migration_get_db_path(db_path_w, MAX_PATH);
+    char db_path[MAX_PATH];
+    WideCharToMultiByte(CP_UTF8, 0, db_path_w, -1, db_path, MAX_PATH, NULL, NULL);
+
+    sqlite3 *db = NULL;
+    if (sqlite3_open_v2(db_path, &db, SQLITE_OPEN_READWRITE, NULL) == SQLITE_OK) {
+        sqlite3_stmt *stmt = NULL;
+        if (success) {
+            const char *sql_m =
+                "UPDATE model SET "
+                "    response_time_ms = ?, "
+                "    rating = MIN(5.0, ROUND(rating + 0.05, 2)), "
+                "    updated_at = CURRENT_TIMESTAMP "
+                "WHERE model_id = ?;";
+            if (sqlite3_prepare_v2(db, sql_m, -1, &stmt, NULL) == SQLITE_OK) {
+                sqlite3_bind_int(stmt, 1, response_time_ms);
+                sqlite3_bind_text(stmt, 2, model_id, -1, SQLITE_STATIC);
+                sqlite3_step(stmt);
+                sqlite3_finalize(stmt);
+            }
+
+            const char *sql_mp =
+                "UPDATE model_penggunaan SET "
+                "    response_time_ms = ?, "
+                "    rating = MIN(5.0, ROUND(rating + 0.05, 2)) "
+                "WHERE model_id = ?;";
+            if (sqlite3_prepare_v2(db, sql_mp, -1, &stmt, NULL) == SQLITE_OK) {
+                sqlite3_bind_int(stmt, 1, response_time_ms);
+                sqlite3_bind_text(stmt, 2, model_id, -1, SQLITE_STATIC);
+                sqlite3_step(stmt);
+                sqlite3_finalize(stmt);
+            }
+        } else {
+            // Penalty: reduce rating by 0.50 (minimum 0.5) and update response time in database
+            const char *sql_m =
+                "UPDATE model SET "
+                "    response_time_ms = MAX(response_time_ms, ?), "
+                "    rating = MAX(0.5, ROUND(rating - 0.50, 2)), "
+                "    updated_at = CURRENT_TIMESTAMP "
+                "WHERE model_id = ?;";
+            if (sqlite3_prepare_v2(db, sql_m, -1, &stmt, NULL) == SQLITE_OK) {
+                sqlite3_bind_int(stmt, 1, response_time_ms);
+                sqlite3_bind_text(stmt, 2, model_id, -1, SQLITE_STATIC);
+                sqlite3_step(stmt);
+                sqlite3_finalize(stmt);
+            }
+
+            const char *sql_mp =
+                "UPDATE model_penggunaan SET "
+                "    response_time_ms = MAX(response_time_ms, ?), "
+                "    rating = MAX(0.5, ROUND(rating - 0.50, 2)) "
+                "WHERE model_id = ?;";
+            if (sqlite3_prepare_v2(db, sql_mp, -1, &stmt, NULL) == SQLITE_OK) {
+                sqlite3_bind_int(stmt, 1, response_time_ms);
+                sqlite3_bind_text(stmt, 2, model_id, -1, SQLITE_STATIC);
+                sqlite3_step(stmt);
+                sqlite3_finalize(stmt);
+            }
+        }
+        sqlite3_close(db);
+    }
+}
+
+static char g_working_model[256] = "";
 
 // Request AI Vision to detect text bubbles and translate to target language
 static int call_vision_translate(const BYTE *jpeg_buf, DWORD jpeg_sz, const char *target_lang,
@@ -313,8 +422,9 @@ static int call_vision_translate(const BYTE *jpeg_buf, DWORD jpeg_sz, const char
 
     sqlite3 *db = NULL;
     char api_key[512] = "";
-    char model_id[256] = "";
     char api_url[512] = "https://openrouter.ai/api/v1";
+    char candidate_models[10][256];
+    int candidate_count = 0;
 
     if (sqlite3_open_v2(db_path, &db, SQLITE_OPEN_READONLY, NULL) == SQLITE_OK) {
         sqlite3_stmt *stmt = NULL;
@@ -328,174 +438,266 @@ static int call_vision_translate(const BYTE *jpeg_buf, DWORD jpeg_sz, const char
             sqlite3_finalize(stmt);
         }
 
-        if (sqlite3_prepare_v2(db, "SELECT model_id FROM model_penggunaan ORDER BY priority_order ASC, id ASC LIMIT 1;", -1, &stmt, NULL) == SQLITE_OK) {
-            if (sqlite3_step(stmt) == SQLITE_ROW) {
+        // Put currently known working model first if available
+        if (g_working_model[0] != '\0') {
+            snprintf(candidate_models[candidate_count++], sizeof(candidate_models[0]), "%.255s", g_working_model);
+        }
+
+        // Load models from model_penggunaan ordered by priority
+        if (sqlite3_prepare_v2(db, "SELECT model_id FROM model_penggunaan ORDER BY priority_order ASC, id ASC LIMIT 10;", -1, &stmt, NULL) == SQLITE_OK) {
+            while (sqlite3_step(stmt) == SQLITE_ROW && candidate_count < 10) {
                 const char *m = (const char *)sqlite3_column_text(stmt, 0);
-                if (m) strncpy(model_id, m, sizeof(model_id) - 1);
+                if (m && m[0] != '\0') {
+                    bool already = false;
+                    for (int c = 0; c < candidate_count; c++) {
+                        if (strcmp(candidate_models[c], m) == 0) { already = true; break; }
+                    }
+                    if (!already) {
+                        strncpy(candidate_models[candidate_count++], m, sizeof(candidate_models[0]) - 1);
+                    }
+                }
             }
             sqlite3_finalize(stmt);
         }
         sqlite3_close(db);
     }
 
-    if (api_key[0] == '\0' || model_id[0] == '\0') {
-        return 0; // AI API not configured
+    if (api_key[0] == '\0' || candidate_count == 0) {
+        append_trans_log(L"-> [Peringatan] API Key atau Model AI aktif belum dikonfigurasi pada tab Pengaturan AI.");
+        return 0;
     }
 
     char *b64 = base64_encode(jpeg_buf, jpeg_sz);
     if (!b64) return 0;
 
-    CURL *curl = curl_easy_init();
-    if (!curl) {
-        free(b64);
-        return 0;
-    }
-
     char ep_url[1024];
     snprintf(ep_url, sizeof(ep_url), "%s/chat/completions", api_url);
 
-    cJSON *req = cJSON_CreateObject();
-    cJSON_AddStringToObject(req, "model", model_id);
+    int total_detected = 0;
 
-    cJSON *messages = cJSON_CreateArray();
-    cJSON *sys = cJSON_CreateObject();
-    cJSON_AddStringToObject(sys, "role", "system");
+    // Try candidate models with auto-failover
+    for (int mi = 0; mi < candidate_count; mi++) {
+        const char *cur_model = candidate_models[mi];
 
-    char sys_prompt[512];
-    snprintf(sys_prompt, sizeof(sys_prompt),
-        "You are an expert manga localization translator. Detect all speech bubbles and text on this page. "
-        "Return ONLY a valid JSON array of objects with percentage coordinates (0-100) and translation in %s: "
-        "[{\"box\": [ymin, xmin, ymax, xmax], \"translation\": \"...\"}]. "
-        "If no text bubbles exist, return []. Output raw JSON only with no markdown fences.",
-        target_lang);
-    cJSON_AddStringToObject(sys, "content", sys_prompt);
-    cJSON_AddItemToArray(messages, sys);
+        CURL *curl = curl_easy_init();
+        if (!curl) continue;
 
-    cJSON *usr = cJSON_CreateObject();
-    cJSON_AddStringToObject(usr, "role", "user");
-    cJSON *parts = cJSON_CreateArray();
+        cJSON *req = cJSON_CreateObject();
+        cJSON_AddStringToObject(req, "model", cur_model);
 
-    cJSON *p_text = cJSON_CreateObject();
-    cJSON_AddStringToObject(p_text, "type", "text");
-    cJSON_AddStringToObject(p_text, "text", "Translate all dialogue bubbles.");
-    cJSON_AddItemToArray(parts, p_text);
+        cJSON *messages = cJSON_CreateArray();
+        cJSON *sys = cJSON_CreateObject();
+        cJSON_AddStringToObject(sys, "role", "system");
 
-    cJSON *p_img = cJSON_CreateObject();
-    cJSON_AddStringToObject(p_img, "type", "image_url");
-    cJSON *img_url = cJSON_CreateObject();
+        char sys_prompt[512];
+        snprintf(sys_prompt, sizeof(sys_prompt),
+            "You are an expert manga localization translator. Detect all speech bubbles and text on this page. "
+            "Return ONLY a valid JSON array of objects with percentage coordinates (0-100) and translation in %s: "
+            "[{\"box\": [ymin, xmin, ymax, xmax], \"translation\": \"...\"}]. "
+            "If no text bubbles exist, return []. Output raw JSON only with no markdown fences.",
+            target_lang);
+        cJSON_AddStringToObject(sys, "content", sys_prompt);
+        cJSON_AddItemToArray(messages, sys);
 
-    char *data_url = malloc(strlen(b64) + 64);
-    if (data_url) {
-        sprintf(data_url, "data:image/jpeg;base64,%s", b64);
-        cJSON_AddStringToObject(img_url, "url", data_url);
-        free(data_url);
-    }
-    cJSON_AddItemToObject(p_img, "image_url", img_url);
-    cJSON_AddItemToArray(parts, p_img);
+        cJSON *usr = cJSON_CreateObject();
+        cJSON_AddStringToObject(usr, "role", "user");
+        cJSON *parts = cJSON_CreateArray();
 
-    cJSON_AddItemToObject(usr, "content", parts);
-    cJSON_AddItemToArray(messages, usr);
-    cJSON_AddItemToObject(req, "messages", messages);
-    cJSON_AddNumberToObject(req, "temperature", 0.1);
+        cJSON *p_text = cJSON_CreateObject();
+        cJSON_AddStringToObject(p_text, "type", "text");
+        cJSON_AddStringToObject(p_text, "text", "Translate all dialogue bubbles.");
+        cJSON_AddItemToArray(parts, p_text);
 
-    char *payload = cJSON_PrintUnformatted(req);
-    cJSON_Delete(req);
-    free(b64);
+        cJSON *p_img = cJSON_CreateObject();
+        cJSON_AddStringToObject(p_img, "type", "image_url");
+        cJSON *img_url = cJSON_CreateObject();
 
-    struct curl_slist *headers = NULL;
-    char auth_hdr[600];
-    snprintf(auth_hdr, sizeof(auth_hdr), "Authorization: Bearer %s", api_key);
-    headers = curl_slist_append(headers, auth_hdr);
-    headers = curl_slist_append(headers, "Content-Type: application/json");
+        char *data_url = (char *)malloc(strlen(b64) + 64);
+        if (data_url) {
+            sprintf(data_url, "data:image/jpeg;base64,%s", b64);
+            cJSON_AddStringToObject(img_url, "url", data_url);
+            free(data_url);
+        }
+        cJSON_AddItemToObject(p_img, "image_url", img_url);
+        cJSON_AddItemToArray(parts, p_img);
 
-    MemChunk chunk = { malloc(1), 0 };
-    chunk.data[0] = '\0';
+        cJSON_AddItemToObject(usr, "content", parts);
+        cJSON_AddItemToArray(messages, usr);
+        cJSON_AddItemToObject(req, "messages", messages);
+        cJSON_AddNumberToObject(req, "temperature", 0.1);
 
-    curl_easy_setopt(curl, CURLOPT_URL, ep_url);
-    curl_easy_setopt(curl, CURLOPT_POST, 1L);
-    curl_easy_setopt(curl, CURLOPT_POSTFIELDS, payload);
-    curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
-    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, curl_mem_cb);
-    curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void *)&chunk);
-    curl_easy_setopt(curl, CURLOPT_TIMEOUT, 60L);
-    curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
+        char *payload = cJSON_PrintUnformatted(req);
+        cJSON_Delete(req);
 
-    CURLcode res = curl_easy_perform(curl);
-    curl_slist_free_all(headers);
-    free(payload);
-    curl_easy_cleanup(curl);
+        if (!payload) {
+            curl_easy_cleanup(curl);
+            continue;
+        }
 
-    int count = 0;
-    if (res == CURLE_OK && chunk.data) {
+        struct curl_slist *headers = NULL;
+        char auth_hdr[600];
+        snprintf(auth_hdr, sizeof(auth_hdr), "Authorization: Bearer %s", api_key);
+        headers = curl_slist_append(headers, auth_hdr);
+        headers = curl_slist_append(headers, "Content-Type: application/json");
+
+        MemChunk chunk = { (char *)malloc(1), 0 };
+        if (chunk.data) chunk.data[0] = '\0';
+
+        curl_easy_setopt(curl, CURLOPT_URL, ep_url);
+        curl_easy_setopt(curl, CURLOPT_POST, 1L);
+        curl_easy_setopt(curl, CURLOPT_POSTFIELDS, payload);
+        curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
+        curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, curl_mem_cb);
+        curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void *)&chunk);
+        curl_easy_setopt(curl, CURLOPT_TIMEOUT, 60L);
+        curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
+
+        DWORD t_start = GetTickCount();
+        CURLcode res = curl_easy_perform(curl);
+        DWORD t_end = GetTickCount();
+        int elapsed_ms = (int)(t_end - t_start);
+        if (elapsed_ms <= 0) elapsed_ms = 1;
+
+        curl_slist_free_all(headers);
+        cJSON_free(payload);
+        curl_easy_cleanup(curl);
+
+        if (res != CURLE_OK || !chunk.data) {
+            // Failure: update DB penalty and try next model
+            update_model_performance(cur_model, false, elapsed_ms);
+            wchar_t wmsg[512];
+            _snwprintf(wmsg, 512, L"-> [AI Gagal] Model '%S' gagal koneksi (%S). Rating diturunkan, respon: %d ms.",
+                       cur_model, curl_easy_strerror(res), elapsed_ms);
+            append_trans_log(wmsg);
+            if (chunk.data) free(chunk.data);
+            if (strcmp(g_working_model, cur_model) == 0) g_working_model[0] = '\0';
+            continue;
+        }
+
         cJSON *root = cJSON_Parse(chunk.data);
-        if (root) {
-            cJSON *choices = cJSON_GetObjectItem(root, "choices");
-            if (cJSON_IsArray(choices) && cJSON_GetArraySize(choices) > 0) {
-                cJSON *first = cJSON_GetArrayItem(choices, 0);
-                cJSON *msg = cJSON_GetObjectItem(first, "message");
-                cJSON *content = cJSON_GetObjectItem(msg, "content");
-                if (content && content->valuestring) {
-                    const char *json_start = strchr(content->valuestring, '[');
-                    const char *json_end = strrchr(content->valuestring, ']');
-                    if (json_start && json_end && json_end > json_start) {
-                        size_t jlen = json_end - json_start + 1;
-                        char *jbuf = malloc(jlen + 1);
-                        if (jbuf) {
-                            strncpy(jbuf, json_start, jlen);
-                            jbuf[jlen] = '\0';
-                            cJSON *barr = cJSON_Parse(jbuf);
-                            if (barr && cJSON_IsArray(barr)) {
-                                int bsz = cJSON_GetArraySize(barr);
-                                for (int i = 0; i < bsz && count < max_bubbles; i++) {
-                                    cJSON *bitem = cJSON_GetArrayItem(barr, i);
-                                    cJSON *c_box = cJSON_GetObjectItem(bitem, "box");
-                                    cJSON *c_tr = cJSON_GetObjectItem(bitem, "translation");
-                                    if (c_box && cJSON_IsArray(c_box) && cJSON_GetArraySize(c_box) == 4 && c_tr && c_tr->valuestring) {
-                                        bubbles[count].ymin = (float)cJSON_GetArrayItem(c_box, 0)->valuedouble;
-                                        bubbles[count].xmin = (float)cJSON_GetArrayItem(c_box, 1)->valuedouble;
-                                        bubbles[count].ymax = (float)cJSON_GetArrayItem(c_box, 2)->valuedouble;
-                                        bubbles[count].xmax = (float)cJSON_GetArrayItem(c_box, 3)->valuedouble;
-                                        strncpy(bubbles[count].translation, c_tr->valuestring, sizeof(bubbles[count].translation) - 1);
-                                        bubbles[count].translation[sizeof(bubbles[count].translation) - 1] = '\0';
-                                        count++;
-                                    }
+        if (!root) {
+            update_model_performance(cur_model, false, elapsed_ms);
+            if (chunk.data) free(chunk.data);
+            continue;
+        }
+
+        // Check if API returned an error object
+        cJSON *err = cJSON_GetObjectItem(root, "error");
+        if (err) {
+            update_model_performance(cur_model, false, elapsed_ms);
+            cJSON *errmsg = cJSON_GetObjectItem(err, "message");
+            const char *emsg = (errmsg && errmsg->valuestring) ? errmsg->valuestring : "Unknown API Error";
+            wchar_t werr[512];
+            MultiByteToWideChar(CP_UTF8, 0, emsg, -1, werr, 512);
+
+            wchar_t err_log[700];
+            _snwprintf(err_log, 700, L"-> [AI Penalti] Model '%S' error: %s. Rating diturunkan (-0.50), respon: %d ms.",
+                       cur_model, werr, elapsed_ms);
+            append_trans_log(err_log);
+
+            if (strcmp(g_working_model, cur_model) == 0) g_working_model[0] = '\0';
+            cJSON_Delete(root);
+            if (chunk.data) free(chunk.data);
+            continue; // Try next candidate model
+        }
+
+        cJSON *choices = cJSON_GetObjectItem(root, "choices");
+        if (!choices || !cJSON_IsArray(choices) || cJSON_GetArraySize(choices) == 0) {
+            update_model_performance(cur_model, false, elapsed_ms);
+            cJSON_Delete(root);
+            if (chunk.data) free(chunk.data);
+            continue;
+        }
+
+        // Success! Update DB with fast response time and slight rating reward
+        update_model_performance(cur_model, true, elapsed_ms);
+        snprintf(g_working_model, sizeof(g_working_model), "%.255s", cur_model);
+
+        cJSON *first = cJSON_GetArrayItem(choices, 0);
+        cJSON *msg = cJSON_GetObjectItem(first, "message");
+        cJSON *content = cJSON_GetObjectItem(msg, "content");
+        if (content && content->valuestring) {
+            const char *json_start = strchr(content->valuestring, '[');
+            const char *json_end = strrchr(content->valuestring, ']');
+            if (json_start && json_end && json_end > json_start) {
+                size_t jlen = json_end - json_start + 1;
+                char *jbuf = (char *)malloc(jlen + 1);
+                if (jbuf) {
+                    strncpy(jbuf, json_start, jlen);
+                    jbuf[jlen] = '\0';
+                    cJSON *barr = cJSON_Parse(jbuf);
+                    if (barr && cJSON_IsArray(barr)) {
+                        int bsz = cJSON_GetArraySize(barr);
+                        for (int i = 0; i < bsz && total_detected < max_bubbles; i++) {
+                            cJSON *bitem = cJSON_GetArrayItem(barr, i);
+                            if (!bitem) continue;
+                            cJSON *c_box = cJSON_GetObjectItem(bitem, "box");
+                            cJSON *c_tr = cJSON_GetObjectItem(bitem, "translation");
+                            if (c_box && cJSON_IsArray(c_box) && cJSON_GetArraySize(c_box) >= 4 && c_tr && c_tr->valuestring) {
+                                cJSON *y0 = cJSON_GetArrayItem(c_box, 0);
+                                cJSON *x0 = cJSON_GetArrayItem(c_box, 1);
+                                cJSON *y1 = cJSON_GetArrayItem(c_box, 2);
+                                cJSON *x1 = cJSON_GetArrayItem(c_box, 3);
+                                if (y0 && x0 && y1 && x1) {
+                                    bubbles[total_detected].ymin = (float)y0->valuedouble;
+                                    bubbles[total_detected].xmin = (float)x0->valuedouble;
+                                    bubbles[total_detected].ymax = (float)y1->valuedouble;
+                                    bubbles[total_detected].xmax = (float)x1->valuedouble;
+                                    strncpy(bubbles[total_detected].translation, c_tr->valuestring, sizeof(bubbles[total_detected].translation) - 1);
+                                    bubbles[total_detected].translation[sizeof(bubbles[total_detected].translation) - 1] = '\0';
+                                    total_detected++;
                                 }
-                                cJSON_Delete(barr);
                             }
-                            free(jbuf);
                         }
+                        cJSON_Delete(barr);
                     }
+                    free(jbuf);
                 }
             }
-            cJSON_Delete(root);
         }
+
+        cJSON_Delete(root);
+        if (chunk.data) free(chunk.data);
+        break; // Successfully processed with cur_model
     }
 
-    if (chunk.data) free(chunk.data);
-    return count;
+    free(b64);
+    return total_detected;
 }
 
 // Inpaint speech bubbles and typeset translated text onto manga page
 static bool process_and_typeset_image(const wchar_t *src_img_path, const wchar_t *dst_img_path,
                                       DetectedBubble *bubbles, int bubble_count) {
+    if (!src_img_path || !dst_img_path) return false;
+
+    // Fast-path: If no bubbles were detected, copy original page directly
+    if (bubble_count <= 0) {
+        return (CopyFileW(src_img_path, dst_img_path, FALSE) != 0);
+    }
+
     IWICImagingFactory *pFactory = NULL;
     HRESULT hr = CoCreateInstance(&CLSID_WICImagingFactory, NULL, CLSCTX_INPROC_SERVER,
                                   &IID_IWICImagingFactory, (void **)&pFactory);
-    if (FAILED(hr)) return false;
+    if (FAILED(hr) || !pFactory) {
+        CopyFileW(src_img_path, dst_img_path, FALSE);
+        return false;
+    }
 
     IWICBitmapDecoder *pDecoder = NULL;
     hr = pFactory->lpVtbl->CreateDecoderFromFilename(
         pFactory, src_img_path, NULL, GENERIC_READ, WICDecodeMetadataCacheOnDemand, &pDecoder);
-    if (FAILED(hr)) {
+    if (FAILED(hr) || !pDecoder) {
         pFactory->lpVtbl->Release(pFactory);
+        CopyFileW(src_img_path, dst_img_path, FALSE);
         return false;
     }
 
     IWICBitmapFrameDecode *pFrame = NULL;
-    pDecoder->lpVtbl->GetFrame(pDecoder, 0, &pFrame);
-    if (!pFrame) {
+    hr = pDecoder->lpVtbl->GetFrame(pDecoder, 0, &pFrame);
+    if (FAILED(hr) || !pFrame) {
         pDecoder->lpVtbl->Release(pDecoder);
         pFactory->lpVtbl->Release(pFactory);
+        CopyFileW(src_img_path, dst_img_path, FALSE);
         return false;
     }
 
@@ -503,7 +705,14 @@ static bool process_and_typeset_image(const wchar_t *src_img_path, const wchar_t
     pFrame->lpVtbl->GetSize(pFrame, &w, &h);
 
     IWICFormatConverter *pConverter = NULL;
-    pFactory->lpVtbl->CreateFormatConverter(pFactory, &pConverter);
+    hr = pFactory->lpVtbl->CreateFormatConverter(pFactory, &pConverter);
+    if (FAILED(hr) || !pConverter) {
+        pFrame->lpVtbl->Release(pFrame);
+        pDecoder->lpVtbl->Release(pDecoder);
+        pFactory->lpVtbl->Release(pFactory);
+        CopyFileW(src_img_path, dst_img_path, FALSE);
+        return false;
+    }
     pConverter->lpVtbl->Initialize(pConverter, (IWICBitmapSource *)pFrame, &GUID_WICPixelFormat32bppBGR,
                                    WICBitmapDitherTypeNone, NULL, 0.0f, WICBitmapPaletteTypeCustom);
 
@@ -520,7 +729,19 @@ static bool process_and_typeset_image(const wchar_t *src_img_path, const wchar_t
     HDC hdcScreen = GetDC(NULL);
     HDC hdcMem = CreateCompatibleDC(hdcScreen);
     HBITMAP hBmp = CreateDIBSection(hdcMem, &bmi, DIB_RGB_COLORS, &bits, NULL, 0);
-    SelectObject(hdcMem, hBmp);
+
+    if (!hBmp || !bits) {
+        DeleteDC(hdcMem);
+        ReleaseDC(NULL, hdcScreen);
+        pConverter->lpVtbl->Release(pConverter);
+        pFrame->lpVtbl->Release(pFrame);
+        pDecoder->lpVtbl->Release(pDecoder);
+        pFactory->lpVtbl->Release(pFactory);
+        CopyFileW(src_img_path, dst_img_path, FALSE);
+        return false;
+    }
+
+    HBITMAP hOldBmp = (HBITMAP)SelectObject(hdcMem, hBmp);
 
     // Copy WIC pixels to DIB bits
     pConverter->lpVtbl->CopyPixels(pConverter, NULL, w * 4, w * h * 4, (BYTE *)bits);
@@ -544,9 +765,11 @@ static bool process_and_typeset_image(const wchar_t *src_img_path, const wchar_t
         // Inpaint: Fill clean white speech bubble
         HBRUSH hWhiteBrush = CreateSolidBrush(RGB(255, 255, 255));
         HPEN hPen = CreatePen(PS_SOLID, 2, RGB(0, 0, 0));
-        SelectObject(hdcMem, hWhiteBrush);
-        SelectObject(hdcMem, hPen);
+        HBRUSH hOldBrush = (HBRUSH)SelectObject(hdcMem, hWhiteBrush);
+        HPEN hOldPen = (HPEN)SelectObject(hdcMem, hPen);
         RoundRect(hdcMem, x1, y1, x2, y2, 20, 20);
+        SelectObject(hdcMem, hOldBrush);
+        SelectObject(hdcMem, hOldPen);
         DeleteObject(hWhiteBrush);
         DeleteObject(hPen);
 
@@ -562,44 +785,52 @@ static bool process_and_typeset_image(const wchar_t *src_img_path, const wchar_t
         HFONT hFont = CreateFontW(best_size, 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE,
                                  DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
                                  CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_DONTCARE, L"Comic Sans MS");
-        SelectObject(hdcMem, hFont);
+        HFONT hOldFont = (HFONT)SelectObject(hdcMem, hFont);
         SetTextColor(hdcMem, RGB(0, 0, 0));
         SetBkMode(hdcMem, TRANSPARENT);
 
         RECT rcText = { x1 + 6, y1 + 6, x2 - 6, y2 - 6 };
         DrawTextW(hdcMem, wText, -1, &rcText, DT_CENTER | DT_WORDBREAK | DT_NOPREFIX);
 
+        SelectObject(hdcMem, hOldFont);
         DeleteObject(hFont);
     }
 
+    SelectObject(hdcMem, hOldBmp);
     DeleteDC(hdcMem);
     ReleaseDC(NULL, hdcScreen);
 
     // Save final modified image to destination path
     IWICBitmap *pOutBmp = NULL;
-    pFactory->lpVtbl->CreateBitmapFromMemory(pFactory, w, h, &GUID_WICPixelFormat32bppBGR,
+    hr = pFactory->lpVtbl->CreateBitmapFromMemory(pFactory, w, h, &GUID_WICPixelFormat32bppBGR,
                                              w * 4, w * h * 4, (BYTE *)bits, &pOutBmp);
 
     IWICStream *pStream = NULL;
-    pFactory->lpVtbl->CreateStream(pFactory, &pStream);
-    pStream->lpVtbl->InitializeFromFilename(pStream, dst_img_path, GENERIC_WRITE);
+    hr = pFactory->lpVtbl->CreateStream(pFactory, &pStream);
+    if (pStream) {
+        pStream->lpVtbl->InitializeFromFilename(pStream, dst_img_path, GENERIC_WRITE);
+    }
 
     IWICBitmapEncoder *pEncoder = NULL;
-    pFactory->lpVtbl->CreateEncoder(pFactory, &GUID_ContainerFormatJpeg, NULL, &pEncoder);
-    pEncoder->lpVtbl->Initialize(pEncoder, (IStream *)pStream, WICBitmapEncoderNoCache);
+    hr = pFactory->lpVtbl->CreateEncoder(pFactory, &GUID_ContainerFormatJpeg, NULL, &pEncoder);
+    if (pEncoder && pStream) {
+        pEncoder->lpVtbl->Initialize(pEncoder, (IStream *)pStream, WICBitmapEncoderNoCache);
 
-    IWICBitmapFrameEncode *pOutFrame = NULL;
-    pEncoder->lpVtbl->CreateNewFrame(pEncoder, &pOutFrame, NULL);
-    pOutFrame->lpVtbl->Initialize(pOutFrame, NULL);
-    pOutFrame->lpVtbl->SetSize(pOutFrame, w, h);
-    pOutFrame->lpVtbl->WriteSource(pOutFrame, (IWICBitmapSource *)pOutBmp, NULL);
-    pOutFrame->lpVtbl->Commit(pOutFrame);
-    pEncoder->lpVtbl->Commit(pEncoder);
+        IWICBitmapFrameEncode *pOutFrame = NULL;
+        pEncoder->lpVtbl->CreateNewFrame(pEncoder, &pOutFrame, NULL);
+        if (pOutFrame && pOutBmp) {
+            pOutFrame->lpVtbl->Initialize(pOutFrame, NULL);
+            pOutFrame->lpVtbl->SetSize(pOutFrame, w, h);
+            pOutFrame->lpVtbl->WriteSource(pOutFrame, (IWICBitmapSource *)pOutBmp, NULL);
+            pOutFrame->lpVtbl->Commit(pOutFrame);
+            pEncoder->lpVtbl->Commit(pEncoder);
+            pOutFrame->lpVtbl->Release(pOutFrame);
+        }
+        pEncoder->lpVtbl->Release(pEncoder);
+    }
 
-    pOutFrame->lpVtbl->Release(pOutFrame);
-    pEncoder->lpVtbl->Release(pEncoder);
-    pStream->lpVtbl->Release(pStream);
-    pOutBmp->lpVtbl->Release(pOutBmp);
+    if (pStream) pStream->lpVtbl->Release(pStream);
+    if (pOutBmp) pOutBmp->lpVtbl->Release(pOutBmp);
 
     DeleteObject(hBmp);
     pConverter->lpVtbl->Release(pConverter);
@@ -607,12 +838,18 @@ static bool process_and_typeset_image(const wchar_t *src_img_path, const wchar_t
     pDecoder->lpVtbl->Release(pDecoder);
     pFactory->lpVtbl->Release(pFactory);
 
+    // Verify destination image exists, fallback to copy if encoding failed
+    if (GetFileAttributesW(dst_img_path) == INVALID_FILE_ATTRIBUTES) {
+        CopyFileW(src_img_path, dst_img_path, FALSE);
+    }
+
     return true;
 }
 
 // Background thread procedure for Manga Translation
 static DWORD WINAPI MangaTranslationThreadProc(LPVOID lpParam) {
     CoInitialize(NULL);
+    g_working_model[0] = '\0';
 
     wchar_t manga_root[MAX_PATH];
     GetWindowTextW(hTransFolderEdit, manga_root, MAX_PATH);
@@ -632,6 +869,14 @@ static DWORD WINAPI MangaTranslationThreadProc(LPVOID lpParam) {
     append_trans_log(L"[1/4] Memulai verifikasi & pemindaian folder chapter...");
 
     TransChapterInfo *chapters = (TransChapterInfo *)calloc(MAX_CHAPTERS, sizeof(TransChapterInfo));
+    if (!chapters) {
+        append_trans_log(L"[Error] Gagal mengalokasikan memori untuk daftar chapter.");
+        CoUninitialize();
+        is_translating = false;
+        EnableWindow(hTransStartBtn, TRUE);
+        EnableWindow(hTransStopBtn, FALSE);
+        return 0;
+    }
     int total_ch = 0;
 
     wchar_t pat[MAX_PATH];
