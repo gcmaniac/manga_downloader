@@ -436,12 +436,14 @@ static bool directory_has_images(const char *dir_path) {
     bool has_images = false;
     do {
         if (!(fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)) {
-            const char *dot = strrchr(fd.cFileName, '.');
-            if (dot) {
-                if (_stricmp(dot, ".jpg") == 0 || _stricmp(dot, ".jpeg") == 0 ||
-                    _stricmp(dot, ".png") == 0 || _stricmp(dot, ".webp") == 0) {
-                    has_images = true;
-                    break;
+            if (fd.nFileSizeHigh > 0 || fd.nFileSizeLow > 0) {
+                const char *dot = strrchr(fd.cFileName, '.');
+                if (dot) {
+                    if (_stricmp(dot, ".jpg") == 0 || _stricmp(dot, ".jpeg") == 0 ||
+                        _stricmp(dot, ".png") == 0 || _stricmp(dot, ".webp") == 0) {
+                        has_images = true;
+                        break;
+                    }
                 }
             }
         }
@@ -516,18 +518,16 @@ static bool is_chapter_already_downloaded(const char *target_root, const char *c
 
 static int download_file(const char *url, const char *outpath, const char *referer) {
     if (!overwrite) {
-        DWORD attr = GetFileAttributesA(outpath);
-        if (attr != INVALID_FILE_ATTRIBUTES && !(attr & FILE_ATTRIBUTE_DIRECTORY)) {
-            return DL_SKIPPED; // File already exists, skip it!
+        WIN32_FILE_ATTRIBUTE_DATA fad;
+        if (GetFileAttributesExA(outpath, GetFileExInfoStandard, &fad)) {
+            if (!(fad.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)) {
+                if (fad.nFileSizeHigh > 0 || fad.nFileSizeLow > 0) {
+                    return DL_SKIPPED; // File already exists and has content
+                }
+            }
+            // If file exists but has 0 bytes (corrupted from previous run), delete to re-download
+            DeleteFileA(outpath);
         }
-    }
-
-    CURL *curl = curl_easy_init();
-    if (!curl) return DL_ERR_INIT;
-    FILE *fp = fopen(outpath, "wb");
-    if (!fp) {
-        curl_easy_cleanup(curl);
-        return DL_ERR_FILE;
     }
 
     char cookie_path[MAX_PATH];
@@ -538,43 +538,100 @@ static int download_file(const char *url, const char *outpath, const char *refer
     wcscat(exePath, L"cookies.txt");
     WideCharToMultiByte(CP_UTF8, 0, exePath, -1, cookie_path, MAX_PATH, NULL, NULL);
 
-    curl_easy_setopt(curl, CURLOPT_URL, url);
-    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_file_cb);
-    curl_easy_setopt(curl, CURLOPT_WRITEDATA, fp);
-    curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
-    curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
-    curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 0L);
-    curl_easy_setopt(curl, CURLOPT_TIMEOUT, 60L);
-    curl_easy_setopt(curl, CURLOPT_ACCEPT_ENCODING, "");
-    curl_easy_setopt(curl, CURLOPT_COOKIEFILE, cookie_path);
-    curl_easy_setopt(curl, CURLOPT_COOKIEJAR, cookie_path);
-
-    struct curl_slist *headers = NULL;
-    headers = curl_slist_append(headers, "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36");
-    headers = curl_slist_append(headers, "Accept: image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8");
-    headers = curl_slist_append(headers, "Accept-Language: en-US,en;q=0.9,id;q=0.8");
-    headers = curl_slist_append(headers, "sec-ch-ua: \"Chromium\";v=\"124\", \"Google Chrome\";v=\"124\", \"Not-A.Brand\";v=\"99\"");
-    headers = curl_slist_append(headers, "sec-ch-ua-mobile: ?0");
-    headers = curl_slist_append(headers, "sec-ch-ua-platform: \"Windows\"");
-    headers = curl_slist_append(headers, "sec-fetch-dest: image");
-    headers = curl_slist_append(headers, "sec-fetch-mode: no-cors");
-    headers = curl_slist_append(headers, "sec-fetch-site: cross-site");
+    // Prepare candidate referers
+    // For MangaNato / 2xstorage.com CDN, hotlink protection requires origin host 'https://www.manganato.gg/'
+    char ref1[512] = "";
+    char ref2[512] = "";
 
     if (referer && referer[0] != '\0') {
-        curl_easy_setopt(curl, CURLOPT_REFERER, referer);
+        if (strstr(url, "2xstorage.com") != NULL || strstr(referer, "manganato") != NULL) {
+            snprintf(ref1, sizeof(ref1), "https://www.manganato.gg/");
+            snprintf(ref2, sizeof(ref2), "%s", referer);
+        } else {
+            snprintf(ref1, sizeof(ref1), "%s", referer);
+            get_base_host(referer, ref2, sizeof(ref2));
+            if (ref2[0] != '\0') {
+                size_t blen = strlen(ref2);
+                if (ref2[blen - 1] != '/') strncat(ref2, "/", sizeof(ref2) - blen - 1);
+            }
+        }
     }
-    curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
 
-    CURLcode res = curl_easy_perform(curl);
-    curl_slist_free_all(headers);
-    fclose(fp);
-    curl_easy_cleanup(curl);
+    const char *candidate_refs[2];
+    int num_candidates = 0;
+    if (ref1[0] != '\0') candidate_refs[num_candidates++] = ref1;
+    if (ref2[0] != '\0' && strcmp(ref1, ref2) != 0) candidate_refs[num_candidates++] = ref2;
+    if (num_candidates == 0) candidate_refs[num_candidates++] = NULL;
 
-    if (stop_requested) {
+    for (int attempt = 0; attempt < num_candidates; attempt++) {
+        if (stop_requested) {
+            DeleteFileA(outpath);
+            return DL_ABORTED;
+        }
+
+        CURL *curl = curl_easy_init();
+        if (!curl) return DL_ERR_INIT;
+
+        FILE *fp = fopen(outpath, "wb");
+        if (!fp) {
+            curl_easy_cleanup(curl);
+            return DL_ERR_FILE;
+        }
+
+        curl_easy_setopt(curl, CURLOPT_URL, url);
+        curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_file_cb);
+        curl_easy_setopt(curl, CURLOPT_WRITEDATA, fp);
+        curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
+        curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
+        curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 0L);
+        curl_easy_setopt(curl, CURLOPT_TIMEOUT, 60L);
+        curl_easy_setopt(curl, CURLOPT_ACCEPT_ENCODING, "");
+        curl_easy_setopt(curl, CURLOPT_COOKIEFILE, cookie_path);
+        curl_easy_setopt(curl, CURLOPT_COOKIEJAR, cookie_path);
+
+        struct curl_slist *headers = NULL;
+        headers = curl_slist_append(headers, "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36");
+        headers = curl_slist_append(headers, "Accept: image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8");
+        headers = curl_slist_append(headers, "Accept-Language: en-US,en;q=0.9,id;q=0.8");
+        headers = curl_slist_append(headers, "sec-ch-ua: \"Chromium\";v=\"124\", \"Google Chrome\";v=\"124\", \"Not-A.Brand\";v=\"99\"");
+        headers = curl_slist_append(headers, "sec-ch-ua-mobile: ?0");
+        headers = curl_slist_append(headers, "sec-ch-ua-platform: \"Windows\"");
+        headers = curl_slist_append(headers, "sec-fetch-dest: image");
+        headers = curl_slist_append(headers, "sec-fetch-mode: no-cors");
+        headers = curl_slist_append(headers, "sec-fetch-site: cross-site");
+
+        if (candidate_refs[attempt] && candidate_refs[attempt][0] != '\0') {
+            curl_easy_setopt(curl, CURLOPT_REFERER, candidate_refs[attempt]);
+        }
+        curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
+
+        CURLcode res = curl_easy_perform(curl);
+        long http_code = 0;
+        curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
+        curl_slist_free_all(headers);
+        fclose(fp);
+        curl_easy_cleanup(curl);
+
+        if (stop_requested) {
+            DeleteFileA(outpath);
+            return DL_ABORTED;
+        }
+
+        // Verify that file was received with HTTP 200 and has non-zero size
+        WIN32_FILE_ATTRIBUTE_DATA fad;
+        if (res == CURLE_OK && http_code == 200 &&
+            GetFileAttributesExA(outpath, GetFileExInfoStandard, &fad)) {
+            if (!(fad.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) &&
+                (fad.nFileSizeHigh > 0 || fad.nFileSizeLow > 0)) {
+                return DL_SUCCESS;
+            }
+        }
+
+        // Failed this attempt (e.g. 403 or empty), delete invalid file before retry
         DeleteFileA(outpath);
-        return DL_ABORTED;
     }
-    return (res == CURLE_OK) ? DL_SUCCESS : DL_ERR_PERFORM;
+
+    return DL_ERR_PERFORM;
 }
 void extract_extension(const char *url, char *ext, size_t max_ext) {
     strncpy(ext, "jpg", max_ext);
@@ -1039,6 +1096,78 @@ static void apply_language_change(HWND hwnd) {
     UpdateWindow(hwnd);
 }
 
+static void find_deepest_existing_folder(const wchar_t *input_path, wchar_t *out_path, size_t max_len) {
+    if (!input_path || input_path[0] == L'\0') {
+        out_path[0] = L'\0';
+        return;
+    }
+
+    wcsncpy(out_path, input_path, max_len - 1);
+    out_path[max_len - 1] = L'\0';
+
+    // Trim whitespace
+    wchar_t *p = out_path;
+    while (*p == L' ' || *p == L'\t') p++;
+    if (p != out_path) memmove(out_path, p, (wcslen(p) + 1) * sizeof(wchar_t));
+    size_t len = wcslen(out_path);
+    while (len > 0 && (out_path[len - 1] == L' ' || out_path[len - 1] == L'\t' || out_path[len - 1] == L'\r' || out_path[len - 1] == L'\n')) {
+        out_path[--len] = L'\0';
+    }
+
+    // Strip surrounding quotes if any
+    if (out_path[0] == L'\"') {
+        memmove(out_path, out_path + 1, len * sizeof(wchar_t));
+        len = wcslen(out_path);
+        if (len > 0 && out_path[len - 1] == L'\"') out_path[--len] = L'\0';
+    }
+
+    // Remove trailing backslash if not root (e.g. "C:\Path\" -> "C:\Path")
+    while (len > 3 && (out_path[len - 1] == L'\\' || out_path[len - 1] == L'/')) {
+        out_path[--len] = L'\0';
+    }
+
+    // Traverse upwards until an existing directory is found
+    while (len > 0) {
+        DWORD attr = GetFileAttributesW(out_path);
+        if (attr != INVALID_FILE_ATTRIBUTES && (attr & FILE_ATTRIBUTE_DIRECTORY)) {
+            return; // Found deepest existing directory!
+        }
+
+        wchar_t *p_slash = wcsrchr(out_path, L'\\');
+        wchar_t *p_fwd = wcsrchr(out_path, L'/');
+        if (p_fwd && (!p_slash || p_fwd > p_slash)) p_slash = p_fwd;
+
+        if (!p_slash) {
+            out_path[0] = L'\0';
+            return;
+        }
+
+        if (p_slash == out_path + 2 && out_path[1] == L':') {
+            *(p_slash + 1) = L'\0';
+            DWORD root_attr = GetFileAttributesW(out_path);
+            if (root_attr != INVALID_FILE_ATTRIBUTES && (root_attr & FILE_ATTRIBUTE_DIRECTORY)) {
+                return;
+            }
+            out_path[0] = L'\0';
+            return;
+        }
+
+        *p_slash = L'\0';
+        len = wcslen(out_path);
+    }
+
+    out_path[0] = L'\0';
+}
+
+static int CALLBACK BrowseFolderCallback(HWND hwnd, UINT uMsg, LPARAM lParam, LPARAM lpData) {
+    if (uMsg == BFFM_INITIALIZED) {
+        if (lpData && ((const wchar_t *)lpData)[0] != L'\0') {
+            SendMessageW(hwnd, BFFM_SETSELECTIONW, TRUE, lpData);
+        }
+    }
+    return 0;
+}
+
 LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
     switch (uMsg) {
     case WM_CREATE: {
@@ -1260,10 +1389,21 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) 
             break;
 
         case ID_BROWSE_BTN: {
+            wchar_t currentPath[MAX_PATH] = { 0 };
+            GetWindowTextW(hFolderEdit, currentPath, MAX_PATH);
+
+            wchar_t initialDir[MAX_PATH] = { 0 };
+            find_deepest_existing_folder(currentPath, initialDir, MAX_PATH);
+
             BROWSEINFOW bi = { 0 };
             bi.hwndOwner = hwnd;
             bi.lpszTitle = _TW("str_browse_title");
             bi.ulFlags = BIF_RETURNONLYFSDIRS | BIF_NEWDIALOGSTYLE;
+            if (initialDir[0] != L'\0') {
+                bi.lpfn = BrowseFolderCallback;
+                bi.lParam = (LPARAM)initialDir;
+            }
+
             PIDLIST_ABSOLUTE pidl = SHBrowseForFolderW(&bi);
             if (pidl != NULL) {
                 wchar_t chosenPath[MAX_PATH];

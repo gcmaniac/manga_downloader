@@ -370,9 +370,11 @@ static int manganato_scan_images(const char *chapter_url, const char *html, char
     if (!start_p) start_p = html;
 
     // Find end boundary of the reader area to avoid scanning comment section or recommended widgets
-    const char *end_p = strstr(start_p, "widget-chapter-images");
-    if (!end_p) end_p = strstr(start_p, "class=\"comment-info\"");
+    const char *end_p = strstr(start_p, "class=\"comment-info\"");
     if (!end_p) end_p = strstr(start_p, "<div class=\"fb-comments\"");
+    if (!end_p) end_p = strstr(start_p, "id=\"comment\"");
+    if (!end_p) end_p = strstr(start_p, "data-zone=\"bottom_content\"");
+    if (!end_p) end_p = strstr(start_p, "class=\"footer-content\"");
 
     const char *p = start_p;
     while ((p = strstr(p, "<img ")) != NULL && count < max_images) {
