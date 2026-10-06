@@ -1,4 +1,5 @@
 #include "db_migration.h"
+#include "lang.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -44,7 +45,7 @@ static bool record_migration(sqlite3 *db, int version, const char *name) {
 
 // Migrasi 1: Tabel model, server_agent, dan model_penggunaan
 static bool apply_migration_v1(sqlite3 *db, db_migration_log_fn cb) {
-    log_msg(cb, "[Migrasi DB] Menerapkan Migrasi v1: Skema tabel dasar (model, server_agent, model_penggunaan)...");
+    log_msg(cb, _T("str_db_mig_v1"));
 
     const char *v1_sql =
         "CREATE TABLE IF NOT EXISTS model ("
@@ -90,20 +91,20 @@ static bool apply_migration_v1(sqlite3 *db, db_migration_log_fn cb) {
     char *errmsg = NULL;
     if (sqlite3_exec(db, v1_sql, NULL, NULL, &errmsg) != SQLITE_OK) {
         char err_log[512];
-        snprintf(err_log, sizeof(err_log), "[Migrasi DB Error v1] %s", errmsg ? errmsg : "Gagal DDL v1");
+        snprintf(err_log, sizeof(err_log), _T("str_db_mig_err_v1"), errmsg ? errmsg : "DDL v1 error");
         log_msg(cb, err_log);
         if (errmsg) sqlite3_free(errmsg);
         return false;
     }
 
     record_migration(db, 1, "001_initial_schema");
-    log_msg(cb, "[Migrasi DB] Migrasi v1 berhasil diselesaikan.");
+    log_msg(cb, _T("str_db_mig_v1_done"));
     return true;
 }
 
 // Migrasi 2: Indeks performa untuk kueri cepat
 static bool apply_migration_v2(sqlite3 *db, db_migration_log_fn cb) {
-    log_msg(cb, "[Migrasi DB] Menerapkan Migrasi v2: Pembuatan indeks optimasi pencarian...");
+    log_msg(cb, _T("str_db_mig_v2"));
 
     const char *v2_sql =
         "CREATE INDEX IF NOT EXISTS idx_model_rating ON model(rating DESC);"
@@ -115,20 +116,20 @@ static bool apply_migration_v2(sqlite3 *db, db_migration_log_fn cb) {
     char *errmsg = NULL;
     if (sqlite3_exec(db, v2_sql, NULL, NULL, &errmsg) != SQLITE_OK) {
         char err_log[512];
-        snprintf(err_log, sizeof(err_log), "[Migrasi DB Error v2] %s", errmsg ? errmsg : "Gagal DDL v2");
+        snprintf(err_log, sizeof(err_log), _T("str_db_mig_err_v2"), errmsg ? errmsg : "DDL v2 error");
         log_msg(cb, err_log);
         if (errmsg) sqlite3_free(errmsg);
         return false;
     }
 
     record_migration(db, 2, "002_performance_indexes");
-    log_msg(cb, "[Migrasi DB] Migrasi v2 berhasil diselesaikan.");
+    log_msg(cb, _T("str_db_mig_v2_done"));
     return true;
 }
 
 // Migrasi 3: Seeding server default dan model katalog awal jika kosong
 static bool apply_migration_v3(sqlite3 *db, db_migration_log_fn cb) {
-    log_msg(cb, "[Migrasi DB] Menerapkan Migrasi v3: Inisialisasi default server & katalog model awal...");
+    log_msg(cb, _T("str_db_mig_v3"));
 
     // 1. Seed server OpenRouter default jika belum ada
     const char *seed_server_sql =
@@ -147,7 +148,7 @@ static bool apply_migration_v3(sqlite3 *db, db_migration_log_fn cb) {
     }
 
     if (model_count == 0) {
-        log_msg(cb, "[Migrasi DB] Mengisi basis data awal model AI terpopuler...");
+        log_msg(cb, _T("str_db_mig_v3_seed"));
         const char *seed_models_sql =
             "INSERT OR IGNORE INTO model (provider, model_id, name, rating, response_time_ms, input_price, output_price, context_length, server_name, is_selected, priority_order) VALUES "
             "('anthropic', 'anthropic/claude-3.5-sonnet', 'Claude 3.5 Sonnet', 5.00, 210, 0.000003, 0.000015, 200000, 'OpenRouter', 1, 1),"
@@ -168,7 +169,7 @@ static bool apply_migration_v3(sqlite3 *db, db_migration_log_fn cb) {
     }
 
     record_migration(db, 3, "003_seed_default_catalog");
-    log_msg(cb, "[Migrasi DB] Migrasi v3 berhasil diselesaikan.");
+    log_msg(cb, _T("str_db_mig_v3_done"));
     return true;
 }
 
@@ -195,7 +196,7 @@ static bool verify_required_tables(sqlite3 *db, char *err_buf, size_t err_buf_le
 
         if (!found) {
             if (err_buf) {
-                snprintf(err_buf, err_buf_len, "Tabel penting '%s' belum tersedia di dalam database.", required_tables[i]);
+                snprintf(err_buf, err_buf_len, _T("str_db_err_table_missing"), required_tables[i]);
             }
             return false;
         }
@@ -211,7 +212,7 @@ bool db_migration_run_all(HWND hwndParent, db_migration_log_fn log_cb, char *err
         UpdateWindow(hwndParent);
     }
 
-    log_msg(log_cb, "[Sistem] Mengunci aplikasi untuk inisialisasi file & migrasi basis data SQLite...");
+    log_msg(log_cb, _T("str_db_lock"));
 
     // 2. Pastikan folder kerja & folder downloads tersedia
     wchar_t exePath[MAX_PATH];
@@ -235,7 +236,7 @@ bool db_migration_run_all(HWND hwndParent, db_migration_log_fn log_cb, char *err
     sqlite3 *db = NULL;
     if (sqlite3_open(dbPathA, &db) != SQLITE_OK) {
         if (err_buf) {
-            snprintf(err_buf, err_buf_len, "Gagal membuka atau membuat file SQLite: %s", sqlite3_errmsg(db));
+            snprintf(err_buf, err_buf_len, _T("str_db_err_open"), sqlite3_errmsg(db));
         }
         if (db) sqlite3_close(db);
 
@@ -255,7 +256,7 @@ bool db_migration_run_all(HWND hwndParent, db_migration_log_fn log_cb, char *err
     char *meta_err = NULL;
     if (sqlite3_exec(db, init_meta_sql, NULL, NULL, &meta_err) != SQLITE_OK) {
         if (err_buf) {
-            snprintf(err_buf, err_buf_len, "Gagal inisialisasi tabel _schema_migrations: %s", meta_err ? meta_err : "Unknown");
+            snprintf(err_buf, err_buf_len, _T("str_db_err_init_meta"), meta_err ? meta_err : "Unknown");
         }
         if (meta_err) sqlite3_free(meta_err);
         sqlite3_close(db);
@@ -266,7 +267,7 @@ bool db_migration_run_all(HWND hwndParent, db_migration_log_fn log_cb, char *err
 
     int current_version = get_current_schema_version(db);
     char ver_msg[128];
-    snprintf(ver_msg, sizeof(ver_msg), "[Sistem] Versi skema SQLite terdeteksi: v%d", current_version);
+    snprintf(ver_msg, sizeof(ver_msg), _T("str_db_schema_version"), current_version);
     log_msg(log_cb, ver_msg);
 
     // 5. Jalankan migrasi secara bertahap jika versi belum tercapai
@@ -317,10 +318,10 @@ bool db_migration_run_all(HWND hwndParent, db_migration_log_fn log_cb, char *err
     SetCursor(hOldCursor);
 
     if (success) {
-        log_msg(log_cb, "[Sistem] Verifikasi dan migrasi basis data SQLite selesai. Seluruh file dan tabel siap.");
-        log_msg(log_cb, "[Sistem] Kunci aplikasi dilepas. Selamat menggunakan Manga Downloader!");
+        log_msg(log_cb, _T("str_db_verified_ready"));
+        log_msg(log_cb, _T("str_db_unlocked"));
     } else {
-        log_msg(log_cb, "[Sistem] GAGAL: Terjadi kendala saat migrasi basis data!");
+        log_msg(log_cb, _T("str_db_failed"));
     }
 
     return success;

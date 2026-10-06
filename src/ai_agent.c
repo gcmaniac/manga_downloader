@@ -1,5 +1,6 @@
 #include "ai_agent.h"
 #include "db_migration.h"
+#include "lang.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -19,14 +20,21 @@ typedef enum {
     SORT_COL_COUNT = 6
 } SortColumnId;
 
-static const wchar_t *SORT_COL_NAMES[SORT_COL_COUNT] = {
-    L"Rating",
-    L"Response Time",
-    L"Harga Input",
-    L"Harga Output",
-    L"Nama Model",
-    L"Provider"
+static const char *SORT_COL_KEYS[SORT_COL_COUNT] = {
+    "str_ai_rating",
+    "str_ai_response_time",
+    "str_ai_input_price",
+    "str_ai_output_price",
+    "str_ai_model_name",
+    "str_ai_provider"
 };
+
+static const wchar_t *get_sort_col_name(int id) {
+    if (id >= 0 && id < SORT_COL_COUNT) {
+        return _TW(SORT_COL_KEYS[id]);
+    }
+    return L"";
+}
 
 static const char *SORT_COL_SQL[SORT_COL_COUNT] = {
     "rating",
@@ -312,14 +320,14 @@ static void update_sort2_options_generic(HWND hS1, HWND hS2, HWND hO2) {
 
     SendMessageW(hS2, CB_RESETCONTENT, 0, 0);
 
-    int none_idx = (int)SendMessageW(hS2, CB_ADDSTRING, 0, (LPARAM)L"-- Tidak Ada --");
+    int none_idx = (int)SendMessageW(hS2, CB_ADDSTRING, 0, (LPARAM)_TW("str_ai_none"));
     SendMessageW(hS2, CB_SETITEMDATA, none_idx, (LPARAM)-1);
 
     int new_sel = 0;
     int cur_idx = 1;
     for (int i = 0; i < SORT_COL_COUNT; i++) {
         if (i == cur_sort1) continue;
-        int idx = (int)SendMessageW(hS2, CB_ADDSTRING, 0, (LPARAM)SORT_COL_NAMES[i]);
+        int idx = (int)SendMessageW(hS2, CB_ADDSTRING, 0, (LPARAM)get_sort_col_name(i));
         SendMessageW(hS2, CB_SETITEMDATA, idx, (LPARAM)i);
         if (i == prev_col2) new_sel = cur_idx;
         cur_idx++;
@@ -641,10 +649,10 @@ void ai_agent_refresh_settings_list(void) {
 
             double in_per_m = in_p * 1000000.0;
             double out_per_m = out_p * 1000000.0;
-            if (in_per_m <= 0.0) _snwprintf(win, sizeof(win)/sizeof(wchar_t), L"Gratis ($0)");
+            if (in_per_m <= 0.0) _snwprintf(win, sizeof(win)/sizeof(wchar_t), _TW("str_ai_free"));
             else _snwprintf(win, sizeof(win)/sizeof(wchar_t), L"$%.2f/M", in_per_m);
 
-            if (out_per_m <= 0.0) _snwprintf(wout, sizeof(wout)/sizeof(wchar_t), L"Gratis ($0)");
+            if (out_per_m <= 0.0) _snwprintf(wout, sizeof(wout)/sizeof(wchar_t), _TW("str_ai_free"));
             else _snwprintf(wout, sizeof(wout)/sizeof(wchar_t), L"$%.2f/M", out_per_m);
 
             LVITEMW lvi = {0};
@@ -759,10 +767,10 @@ void ai_agent_refresh_catalog_list(void) {
 
             double in_per_m = in_p * 1000000.0;
             double out_per_m = out_p * 1000000.0;
-            if (in_per_m <= 0.0) _snwprintf(win, sizeof(win)/sizeof(wchar_t), L"Gratis ($0)");
+            if (in_per_m <= 0.0) _snwprintf(win, sizeof(win)/sizeof(wchar_t), _TW("str_ai_free"));
             else _snwprintf(win, sizeof(win)/sizeof(wchar_t), L"$%.2f/M", in_per_m);
 
-            if (out_per_m <= 0.0) _snwprintf(wout, sizeof(wout)/sizeof(wchar_t), L"Gratis ($0)");
+            if (out_per_m <= 0.0) _snwprintf(wout, sizeof(wout)/sizeof(wchar_t), _TW("str_ai_free"));
             else _snwprintf(wout, sizeof(wout)/sizeof(wchar_t), L"$%.2f/M", out_per_m);
 
             LVITEMW lvi = {0};
@@ -824,10 +832,10 @@ void ai_agent_refresh_used_models_list(void) {
 
             double in_per_m = in_p * 1000000.0;
             double out_per_m = out_p * 1000000.0;
-            if (in_per_m <= 0.0) _snwprintf(win, sizeof(win)/sizeof(wchar_t), L"Gratis ($0)");
+            if (in_per_m <= 0.0) _snwprintf(win, sizeof(win)/sizeof(wchar_t), _TW("str_ai_free"));
             else _snwprintf(win, sizeof(win)/sizeof(wchar_t), L"$%.2f/M", in_per_m);
 
-            if (out_per_m <= 0.0) _snwprintf(wout, sizeof(wout)/sizeof(wchar_t), L"Gratis ($0)");
+            if (out_per_m <= 0.0) _snwprintf(wout, sizeof(wout)/sizeof(wchar_t), _TW("str_ai_free"));
             else _snwprintf(wout, sizeof(wout)/sizeof(wchar_t), L"$%.2f/M", out_per_m);
 
             LVITEMW lvi = {0};
@@ -853,7 +861,7 @@ void ai_agent_refresh_used_models_list(void) {
 
     wchar_t status_txt[128];
     _snwprintf(status_txt, sizeof(status_txt)/sizeof(wchar_t),
-               L"Daftar Model AI yang Digunakan dalam Aplikasi (Total: %d model aktif)", count);
+               _TW("str_ai_active_models_status"), count);
     SetWindowTextW(hTab3Status, status_txt);
 }
 
@@ -864,8 +872,8 @@ void ai_agent_delete_selected_used_models(HWND hwnd) {
     int sel_count = ListView_GetSelectedCount(hTab3ListView);
     if (sel_count == 0) {
         MessageBoxW(hwnd,
-                    L"Pilih satu atau beberapa model pada tabel di bawah terlebih dahulu!\n(Gunakan Shift+Klik atau Ctrl+Klik untuk memilih banyak model)",
-                    L"Pilih Model",
+                    _TW("str_ai_msg_select_model"),
+                    _TW("str_ai_msg_select_model_title"),
                     MB_OK | MB_ICONINFORMATION);
         return;
     }
@@ -916,7 +924,7 @@ void ai_agent_init(HWND hwndParent, HINSTANCE hInst) {
     // ========================================================
     g_tab1_ctrl_count = 0;
 
-    hLblServerName = CreateWindowW(L"STATIC", L"Nama Server AI:", WS_CHILD | SS_LEFT,
+    hLblServerName = CreateWindowW(L"STATIC", _TW("str_ai_lbl_server_name"), WS_CHILD | SS_LEFT,
                                    25, 38, 120, 18, hwndParent, NULL, hInst, NULL);
     apply_gui_font(hLblServerName);
     g_tab1_controls[g_tab1_ctrl_count++] = hLblServerName;
@@ -927,7 +935,7 @@ void ai_agent_init(HWND hwndParent, HINSTANCE hInst) {
     apply_gui_font(hServerNameCombo);
     g_tab1_controls[g_tab1_ctrl_count++] = hServerNameCombo;
 
-    hLblServerUrl = CreateWindowW(L"STATIC", L"URL Server API:", WS_CHILD | SS_LEFT,
+    hLblServerUrl = CreateWindowW(L"STATIC", _TW("str_ai_lbl_server_url"), WS_CHILD | SS_LEFT,
                                   200, 38, 150, 18, hwndParent, NULL, hInst, NULL);
     apply_gui_font(hLblServerUrl);
     g_tab1_controls[g_tab1_ctrl_count++] = hLblServerUrl;
@@ -938,7 +946,7 @@ void ai_agent_init(HWND hwndParent, HINSTANCE hInst) {
     apply_gui_font(hServerUrlEdit);
     g_tab1_controls[g_tab1_ctrl_count++] = hServerUrlEdit;
 
-    hLblApiKey = CreateWindowW(L"STATIC", L"API Key (Wajib untuk Scan):", WS_CHILD | SS_LEFT,
+    hLblApiKey = CreateWindowW(L"STATIC", _TW("str_ai_lbl_api_key"), WS_CHILD | SS_LEFT,
                                515, 38, 200, 18, hwndParent, NULL, hInst, NULL);
     apply_gui_font(hLblApiKey);
     g_tab1_controls[g_tab1_ctrl_count++] = hLblApiKey;
@@ -949,18 +957,18 @@ void ai_agent_init(HWND hwndParent, HINSTANCE hInst) {
     apply_gui_font(hApiKeyEdit);
     g_tab1_controls[g_tab1_ctrl_count++] = hApiKeyEdit;
 
-    hScanBtn = CreateWindowW(L"BUTTON", L"Scan dan Test Model", WS_CHILD | BS_PUSHBUTTON,
+    hScanBtn = CreateWindowW(L"BUTTON", _TW("str_ai_btn_scan"), WS_CHILD | BS_PUSHBUTTON,
                              25, 88, 175, 28, hwndParent, (HMENU)ID_SCAN_BTN, hInst, NULL);
     apply_gui_font(hScanBtn);
     g_tab1_controls[g_tab1_ctrl_count++] = hScanBtn;
 
-    hScanStatus = CreateWindowW(L"STATIC", L"Pilih Server & masukkan API Key, lalu klik 'Scan dan Test Model'.",
+    hScanStatus = CreateWindowW(L"STATIC", _TW("str_ai_status_prompt"),
                                 WS_CHILD | SS_LEFTNOWORDWRAP,
                                 210, 94, 490, 20, hwndParent, (HMENU)ID_SCAN_STATUS, hInst, NULL);
     apply_gui_font(hScanStatus);
     g_tab1_controls[g_tab1_ctrl_count++] = hScanStatus;
 
-    hLblSort1 = CreateWindowW(L"STATIC", L"Urutkan 1:", WS_CHILD | SS_LEFT,
+    hLblSort1 = CreateWindowW(L"STATIC", _TW("str_ai_lbl_sort1"), WS_CHILD | SS_LEFT,
                               25, 124, 75, 18, hwndParent, NULL, hInst, NULL);
     apply_gui_font(hLblSort1);
     g_tab1_controls[g_tab1_ctrl_count++] = hLblSort1;
@@ -977,7 +985,7 @@ void ai_agent_init(HWND hwndParent, HINSTANCE hInst) {
     apply_gui_font(hOrder1Combo);
     g_tab1_controls[g_tab1_ctrl_count++] = hOrder1Combo;
 
-    hLblSort2 = CreateWindowW(L"STATIC", L"Urutkan 2:", WS_CHILD | SS_LEFT,
+    hLblSort2 = CreateWindowW(L"STATIC", _TW("str_ai_lbl_sort2"), WS_CHILD | SS_LEFT,
                               335, 124, 75, 18, hwndParent, NULL, hInst, NULL);
     apply_gui_font(hLblSort2);
     g_tab1_controls[g_tab1_ctrl_count++] = hLblSort2;
@@ -1006,36 +1014,36 @@ void ai_agent_init(HWND hwndParent, HINSTANCE hInst) {
 
     col.fmt = LVCFMT_LEFT;
     col.cx = 110;
-    col.pszText = L"Provider";
+    col.pszText = (LPWSTR)_TW("str_ai_provider");
     ListView_InsertColumn(hModelListView, 0, &col);
 
     col.fmt = LVCFMT_LEFT;
     col.cx = 220;
-    col.pszText = L"Model";
+    col.pszText = (LPWSTR)_TW("str_ai_model");
     ListView_InsertColumn(hModelListView, 1, &col);
 
     col.fmt = LVCFMT_CENTER;
     col.cx = 65;
-    col.pszText = L"Rating";
+    col.pszText = (LPWSTR)_TW("str_ai_rating");
     ListView_InsertColumn(hModelListView, 2, &col);
 
     col.fmt = LVCFMT_RIGHT;
     col.cx = 90;
-    col.pszText = L"Response";
+    col.pszText = (LPWSTR)_TW("str_ai_response");
     ListView_InsertColumn(hModelListView, 3, &col);
 
     col.fmt = LVCFMT_RIGHT;
     col.cx = 95;
-    col.pszText = L"Harga Input";
+    col.pszText = (LPWSTR)_TW("str_ai_input_price");
     ListView_InsertColumn(hModelListView, 4, &col);
 
     col.fmt = LVCFMT_RIGHT;
     col.cx = 95;
-    col.pszText = L"Harga Output";
+    col.pszText = (LPWSTR)_TW("str_ai_output_price");
     ListView_InsertColumn(hModelListView, 5, &col);
 
     for (int i = 0; i < SORT_COL_COUNT; i++) {
-        int idx = (int)SendMessageW(hSort1Combo, CB_ADDSTRING, 0, (LPARAM)SORT_COL_NAMES[i]);
+        int idx = (int)SendMessageW(hSort1Combo, CB_ADDSTRING, 0, (LPARAM)get_sort_col_name(i));
         SendMessageW(hSort1Combo, CB_SETITEMDATA, idx, (LPARAM)i);
     }
     SendMessageW(hSort1Combo, CB_SETCURSEL, 0, 0);
@@ -1056,7 +1064,7 @@ void ai_agent_init(HWND hwndParent, HINSTANCE hInst) {
     g_tab2_ctrl_count = 0;
 
     // Filter Type
-    hLblTab2Filter = CreateWindowW(L"STATIC", L"Filter:", WS_CHILD | SS_LEFT,
+    hLblTab2Filter = CreateWindowW(L"STATIC", _TW("str_ai_tab2_lbl_filter"), WS_CHILD | SS_LEFT,
                                    25, 36, 40, 18, hwndParent, NULL, hInst, NULL);
     apply_gui_font(hLblTab2Filter);
     g_tab2_controls[g_tab2_ctrl_count++] = hLblTab2Filter;
@@ -1067,15 +1075,15 @@ void ai_agent_init(HWND hwndParent, HINSTANCE hInst) {
     apply_gui_font(hTab2FilterCombo);
     g_tab2_controls[g_tab2_ctrl_count++] = hTab2FilterCombo;
 
-    SendMessageW(hTab2FilterCombo, CB_ADDSTRING, 0, (LPARAM)L"-- Tanpa Filter --");
-    SendMessageW(hTab2FilterCombo, CB_ADDSTRING, 0, (LPARAM)L"Harga Input ($/1M)");
-    SendMessageW(hTab2FilterCombo, CB_ADDSTRING, 0, (LPARAM)L"Harga Output ($/1M)");
-    SendMessageW(hTab2FilterCombo, CB_ADDSTRING, 0, (LPARAM)L"Response Time (ms)");
-    SendMessageW(hTab2FilterCombo, CB_ADDSTRING, 0, (LPARAM)L"Rating (1 - 5)");
+    SendMessageW(hTab2FilterCombo, CB_ADDSTRING, 0, (LPARAM)_TW("str_ai_tab2_no_filter"));
+    SendMessageW(hTab2FilterCombo, CB_ADDSTRING, 0, (LPARAM)_TW("str_ai_tab2_filter_input_price"));
+    SendMessageW(hTab2FilterCombo, CB_ADDSTRING, 0, (LPARAM)_TW("str_ai_tab2_filter_output_price"));
+    SendMessageW(hTab2FilterCombo, CB_ADDSTRING, 0, (LPARAM)_TW("str_ai_tab2_filter_response_time"));
+    SendMessageW(hTab2FilterCombo, CB_ADDSTRING, 0, (LPARAM)_TW("str_ai_tab2_filter_rating"));
     SendMessageW(hTab2FilterCombo, CB_SETCURSEL, 0, 0);
 
     // Filter "Dari" (Min)
-    hLblTab2From = CreateWindowW(L"STATIC", L"Dari:", WS_CHILD | SS_LEFT,
+    hLblTab2From = CreateWindowW(L"STATIC", _TW("str_ai_tab2_lbl_from"), WS_CHILD | SS_LEFT,
                                  218, 36, 32, 18, hwndParent, NULL, hInst, NULL);
     apply_gui_font(hLblTab2From);
     g_tab2_controls[g_tab2_ctrl_count++] = hLblTab2From;
@@ -1088,7 +1096,7 @@ void ai_agent_init(HWND hwndParent, HINSTANCE hInst) {
     g_tab2_controls[g_tab2_ctrl_count++] = hTab2FilterFromEdit;
 
     // Filter "s/d" (Max)
-    hLblTab2To = CreateWindowW(L"STATIC", L"s/d:", WS_CHILD | SS_LEFT,
+    hLblTab2To = CreateWindowW(L"STATIC", _TW("str_ai_tab2_lbl_to"), WS_CHILD | SS_LEFT,
                                302, 36, 24, 18, hwndParent, NULL, hInst, NULL);
     apply_gui_font(hLblTab2To);
     g_tab2_controls[g_tab2_ctrl_count++] = hLblTab2To;
@@ -1101,13 +1109,13 @@ void ai_agent_init(HWND hwndParent, HINSTANCE hInst) {
     g_tab2_controls[g_tab2_ctrl_count++] = hTab2FilterToEdit;
 
     // Apply Filter Button
-    hTab2ApplyFilterBtn = CreateWindowW(L"BUTTON", L"Filter", WS_CHILD | BS_PUSHBUTTON,
+    hTab2ApplyFilterBtn = CreateWindowW(L"BUTTON", _TW("str_ai_tab2_btn_apply"), WS_CHILD | BS_PUSHBUTTON,
                                         378, 31, 50, 26, hwndParent, (HMENU)ID_TAB2_APPLY_FILTER_BTN, hInst, NULL);
     apply_gui_font(hTab2ApplyFilterBtn);
     g_tab2_controls[g_tab2_ctrl_count++] = hTab2ApplyFilterBtn;
 
     // Button: Gunakan Model Ini
-    hTab2UseModelBtn = CreateWindowW(L"BUTTON", L"Gunakan Model Ini", WS_CHILD | BS_PUSHBUTTON,
+    hTab2UseModelBtn = CreateWindowW(L"BUTTON", _TW("str_ai_tab2_btn_use"), WS_CHILD | BS_PUSHBUTTON,
                                      433, 31, 145, 26, hwndParent, (HMENU)ID_TAB2_USE_MODEL_BTN, hInst, NULL);
     apply_gui_font(hTab2UseModelBtn);
     g_tab2_controls[g_tab2_ctrl_count++] = hTab2UseModelBtn;
@@ -1120,7 +1128,7 @@ void ai_agent_init(HWND hwndParent, HINSTANCE hInst) {
     g_tab2_controls[g_tab2_ctrl_count++] = hTab2UseStatus;
 
     // Row 2: Sort 1 & Sort 2
-    hLblTab2Sort1 = CreateWindowW(L"STATIC", L"Urutkan 1:", WS_CHILD | SS_LEFT,
+    hLblTab2Sort1 = CreateWindowW(L"STATIC", _TW("str_ai_lbl_sort1"), WS_CHILD | SS_LEFT,
                                   25, 68, 65, 18, hwndParent, NULL, hInst, NULL);
     apply_gui_font(hLblTab2Sort1);
     g_tab2_controls[g_tab2_ctrl_count++] = hLblTab2Sort1;
@@ -1137,7 +1145,7 @@ void ai_agent_init(HWND hwndParent, HINSTANCE hInst) {
     apply_gui_font(hTab2Order1Combo);
     g_tab2_controls[g_tab2_ctrl_count++] = hTab2Order1Combo;
 
-    hLblTab2Sort2 = CreateWindowW(L"STATIC", L"Urutkan 2:", WS_CHILD | SS_LEFT,
+    hLblTab2Sort2 = CreateWindowW(L"STATIC", _TW("str_ai_lbl_sort2"), WS_CHILD | SS_LEFT,
                                   305, 68, 65, 18, hwndParent, NULL, hInst, NULL);
     apply_gui_font(hLblTab2Sort2);
     g_tab2_controls[g_tab2_ctrl_count++] = hLblTab2Sort2;
@@ -1155,7 +1163,7 @@ void ai_agent_init(HWND hwndParent, HINSTANCE hInst) {
     g_tab2_controls[g_tab2_ctrl_count++] = hTab2Order2Combo;
 
     for (int i = 0; i < SORT_COL_COUNT; i++) {
-        int idx = (int)SendMessageW(hTab2Sort1Combo, CB_ADDSTRING, 0, (LPARAM)SORT_COL_NAMES[i]);
+        int idx = (int)SendMessageW(hTab2Sort1Combo, CB_ADDSTRING, 0, (LPARAM)get_sort_col_name(i));
         SendMessageW(hTab2Sort1Combo, CB_SETITEMDATA, idx, (LPARAM)i);
     }
     SendMessageW(hTab2Sort1Combo, CB_SETCURSEL, 0, 0);
@@ -1183,32 +1191,32 @@ void ai_agent_init(HWND hwndParent, HINSTANCE hInst) {
 
     col2.fmt = LVCFMT_LEFT;
     col2.cx = 110;
-    col2.pszText = L"Provider";
+    col2.pszText = (LPWSTR)_TW("str_ai_provider");
     ListView_InsertColumn(hTab2ListView, 0, &col2);
 
     col2.fmt = LVCFMT_LEFT;
     col2.cx = 220;
-    col2.pszText = L"Model";
+    col2.pszText = (LPWSTR)_TW("str_ai_model");
     ListView_InsertColumn(hTab2ListView, 1, &col2);
 
     col2.fmt = LVCFMT_CENTER;
     col2.cx = 65;
-    col2.pszText = L"Rating";
+    col2.pszText = (LPWSTR)_TW("str_ai_rating");
     ListView_InsertColumn(hTab2ListView, 2, &col2);
 
     col2.fmt = LVCFMT_RIGHT;
     col2.cx = 90;
-    col2.pszText = L"Response";
+    col2.pszText = (LPWSTR)_TW("str_ai_response");
     ListView_InsertColumn(hTab2ListView, 3, &col2);
 
     col2.fmt = LVCFMT_RIGHT;
     col2.cx = 95;
-    col2.pszText = L"Harga Input";
+    col2.pszText = (LPWSTR)_TW("str_ai_input_price");
     ListView_InsertColumn(hTab2ListView, 4, &col2);
 
     col2.fmt = LVCFMT_RIGHT;
     col2.cx = 95;
-    col2.pszText = L"Harga Output";
+    col2.pszText = (LPWSTR)_TW("str_ai_output_price");
     ListView_InsertColumn(hTab2ListView, 5, &col2);
 
     // ========================================================
@@ -1216,23 +1224,23 @@ void ai_agent_init(HWND hwndParent, HINSTANCE hInst) {
     // ========================================================
     g_tab3_ctrl_count = 0;
 
-    hTab3Status = CreateWindowW(L"STATIC", L"Daftar Model AI yang Digunakan dalam Aplikasi",
+    hTab3Status = CreateWindowW(L"STATIC", _TW("str_ai_tab3_status"),
                                 WS_CHILD | SS_LEFT,
                                 25, 38, 350, 20, hwndParent, (HMENU)ID_TAB3_STATUS, hInst, NULL);
     apply_gui_font(hTab3Status);
     g_tab3_controls[g_tab3_ctrl_count++] = hTab3Status;
 
-    hTab3DeleteBtn = CreateWindowW(L"BUTTON", L"Hapus Model Terpilih (Del)", WS_CHILD | BS_PUSHBUTTON,
+    hTab3DeleteBtn = CreateWindowW(L"BUTTON", _TW("str_ai_tab3_btn_delete"), WS_CHILD | BS_PUSHBUTTON,
                                    385, 32, 175, 28, hwndParent, (HMENU)ID_TAB3_DELETE_BTN, hInst, NULL);
     apply_gui_font(hTab3DeleteBtn);
     g_tab3_controls[g_tab3_ctrl_count++] = hTab3DeleteBtn;
 
-    hTab3ClearBtn = CreateWindowW(L"BUTTON", L"Kosongkan Semua", WS_CHILD | BS_PUSHBUTTON,
+    hTab3ClearBtn = CreateWindowW(L"BUTTON", _TW("str_ai_tab3_btn_clear"), WS_CHILD | BS_PUSHBUTTON,
                                   570, 32, 130, 28, hwndParent, (HMENU)ID_TAB3_CLEAR_BTN, hInst, NULL);
     apply_gui_font(hTab3ClearBtn);
     g_tab3_controls[g_tab3_ctrl_count++] = hTab3ClearBtn;
 
-    hTab3Hint = CreateWindowW(L"STATIC", L"* Tips: Gunakan Shift+Klik atau Ctrl+Klik untuk memilih banyak model, lalu tekan tombol Delete.",
+    hTab3Hint = CreateWindowW(L"STATIC", _TW("str_ai_tab3_hint"),
                               WS_CHILD | SS_LEFT,
                               25, 64, 675, 18, hwndParent, NULL, hInst, NULL);
     apply_gui_font(hTab3Hint);
@@ -1360,10 +1368,10 @@ void ai_agent_on_command(HWND hwnd, WPARAM wParam, LPARAM lParam) {
         while (*p == L' ' || *p == L'\t' || *p == L'\r' || *p == L'\n') p++;
         if (wcslen(p) == 0) {
             MessageBoxW(hwnd,
-                        L"API Key wajib diisi untuk melakukan 'Scan dan Test Model'!\n\nSilakan masukkan API Key Anda pada kolom API Key di atas.",
-                        L"API Key Diperlukan",
+                        _TW("str_ai_msg_apikey_required"),
+                        _TW("str_ai_msg_apikey_required_title"),
                         MB_OK | MB_ICONWARNING);
-            SetWindowTextW(hScanStatus, L"Peringatan: API Key wajib diisi untuk Scan dan Test Model!");
+            SetWindowTextW(hScanStatus, _TW("str_ai_status_apikey_warn"));
             SetFocus(hApiKeyEdit);
             return;
         }
@@ -1379,7 +1387,7 @@ void ai_agent_on_command(HWND hwnd, WPARAM wParam, LPARAM lParam) {
         params->hwndNotify = hwnd;
 
         EnableWindow(hScanBtn, FALSE);
-        SetWindowTextW(hScanStatus, L"Sedang memindai dan menguji semua model dari server AI... Harap tunggu.");
+        SetWindowTextW(hScanStatus, _TW("str_ai_status_scanning"));
 
         if (hScanThread) {
             CloseHandle(hScanThread);
@@ -1436,7 +1444,7 @@ void ai_agent_on_command(HWND hwnd, WPARAM wParam, LPARAM lParam) {
         // Tombol: Gunakan Model Ini -> Menambahkan SEMUA model yang tertera di listview Tab 2 ke model_penggunaan
         int total_listed = ListView_GetItemCount(hTab2ListView);
         if (total_listed == 0) {
-            MessageBoxW(hwnd, L"Tidak ada model yang tertera pada tabel saat ini.", L"Info", MB_OK | MB_ICONINFORMATION);
+            MessageBoxW(hwnd, _TW("str_ai_msg_no_models"), _TW("str_alert_info"), MB_OK | MB_ICONINFORMATION);
             return;
         }
 
@@ -1485,9 +1493,9 @@ void ai_agent_on_command(HWND hwnd, WPARAM wParam, LPARAM lParam) {
 
             wchar_t msg[512];
             _snwprintf(msg, sizeof(msg)/sizeof(wchar_t),
-                       L"Berhasil menambahkan %d model ke daftar Model AI Digunakan!\n\n(Daftar ini ditambahkan ke model yang sudah ada, tanpa menghapus yang sebelumnya).\nBuka tab 'Model AI Digunakan' untuk melihat daftar aktif.",
+                       _TW("str_ai_msg_models_added"),
                        added_count);
-            MessageBoxW(hwnd, msg, L"Model AI Berhasil Digunakan", MB_OK | MB_ICONINFORMATION);
+            MessageBoxW(hwnd, msg, _TW("str_ai_msg_models_added_title"), MB_OK | MB_ICONINFORMATION);
         }
     }
 
@@ -1499,8 +1507,8 @@ void ai_agent_on_command(HWND hwnd, WPARAM wParam, LPARAM lParam) {
         if (count == 0) return;
 
         if (MessageBoxW(hwnd,
-                        L"Apakah Anda yakin ingin mengosongkan semua model dari tabel penggunaan?",
-                        L"Konfirmasi Hapus Semua",
+                        _TW("str_ai_msg_confirm_clear"),
+                        _TW("str_ai_msg_confirm_clear_title"),
                         MB_YESNO | MB_ICONQUESTION) == IDYES) {
             sqlite3 *db = open_database();
             if (db) {
@@ -1518,17 +1526,97 @@ void ai_agent_on_scan_done(HWND hwnd, int count) {
     if (count >= 0) {
         wchar_t msg[256];
         _snwprintf(msg, sizeof(msg)/sizeof(wchar_t),
-                   L"Scan dan Test selesai! Berhasil menarik dan menguji %d model di database SQLite.", count);
+                   _TW("str_ai_scan_success"), count);
         SetWindowTextW(hScanStatus, msg);
         ai_agent_refresh_settings_list();
         ai_agent_refresh_catalog_list();
     } else if (count == -401) {
-        SetWindowTextW(hScanStatus, L"Gagal: API Key tidak valid atau otentikasi ditolak oleh server OpenRouter!");
+        SetWindowTextW(hScanStatus, _TW("str_ai_scan_auth_failed"));
         MessageBoxW(hwnd,
-                    L"Otentikasi Gagal!\n\nAPI Key yang dimasukkan tidak valid atau ditolak oleh server OpenRouter. Silakan periksa kembali API Key Anda.",
-                    L"API Key Tidak Valid",
+                    _TW("str_ai_scan_auth_failed"),
+                    _TW("str_alert_warning"),
                     MB_OK | MB_ICONERROR);
     } else {
-        SetWindowTextW(hScanStatus, L"Gagal memindai model. Periksa koneksi internet atau URL server!");
+        SetWindowTextW(hScanStatus, _TW("str_ai_scan_net_failed"));
     }
 }
+
+void ai_agent_refresh_lang(void) {
+    if (hLblServerName) SetWindowTextW(hLblServerName, _TW("str_ai_lbl_server_name"));
+    if (hLblServerUrl) SetWindowTextW(hLblServerUrl, _TW("str_ai_lbl_server_url"));
+    if (hLblApiKey) SetWindowTextW(hLblApiKey, _TW("str_ai_lbl_api_key"));
+    if (hScanBtn) SetWindowTextW(hScanBtn, _TW("str_ai_btn_scan"));
+    if (hScanStatus) SetWindowTextW(hScanStatus, _TW("str_ai_status_prompt"));
+    if (hLblSort1) SetWindowTextW(hLblSort1, _TW("str_ai_lbl_sort1"));
+    if (hLblSort2) SetWindowTextW(hLblSort2, _TW("str_ai_lbl_sort2"));
+
+    if (hModelListView) {
+        LVCOLUMNW col = {0};
+        col.mask = LVCF_TEXT;
+        col.pszText = (LPWSTR)_TW("str_ai_provider");
+        ListView_SetColumn(hModelListView, 0, &col);
+        col.pszText = (LPWSTR)_TW("str_ai_model");
+        ListView_SetColumn(hModelListView, 1, &col);
+        col.pszText = (LPWSTR)_TW("str_ai_rating");
+        ListView_SetColumn(hModelListView, 2, &col);
+        col.pszText = (LPWSTR)_TW("str_ai_response");
+        ListView_SetColumn(hModelListView, 3, &col);
+        col.pszText = (LPWSTR)_TW("str_ai_input_price");
+        ListView_SetColumn(hModelListView, 4, &col);
+        col.pszText = (LPWSTR)_TW("str_ai_output_price");
+        ListView_SetColumn(hModelListView, 5, &col);
+    }
+
+    if (hLblTab2Filter) SetWindowTextW(hLblTab2Filter, _TW("str_ai_tab2_lbl_filter"));
+    if (hLblTab2From) SetWindowTextW(hLblTab2From, _TW("str_ai_tab2_lbl_from"));
+    if (hLblTab2To) SetWindowTextW(hLblTab2To, _TW("str_ai_tab2_lbl_to"));
+    if (hTab2ApplyFilterBtn) SetWindowTextW(hTab2ApplyFilterBtn, _TW("str_ai_tab2_btn_apply"));
+    if (hTab2UseModelBtn) SetWindowTextW(hTab2UseModelBtn, _TW("str_ai_tab2_btn_use"));
+    if (hLblTab2Sort1) SetWindowTextW(hLblTab2Sort1, _TW("str_ai_lbl_sort1"));
+    if (hLblTab2Sort2) SetWindowTextW(hLblTab2Sort2, _TW("str_ai_lbl_sort2"));
+
+    if (hTab2ListView) {
+        LVCOLUMNW col = {0};
+        col.mask = LVCF_TEXT;
+        col.pszText = (LPWSTR)_TW("str_ai_provider");
+        ListView_SetColumn(hTab2ListView, 0, &col);
+        col.pszText = (LPWSTR)_TW("str_ai_model");
+        ListView_SetColumn(hTab2ListView, 1, &col);
+        col.pszText = (LPWSTR)_TW("str_ai_rating");
+        ListView_SetColumn(hTab2ListView, 2, &col);
+        col.pszText = (LPWSTR)_TW("str_ai_response");
+        ListView_SetColumn(hTab2ListView, 3, &col);
+        col.pszText = (LPWSTR)_TW("str_ai_input_price");
+        ListView_SetColumn(hTab2ListView, 4, &col);
+        col.pszText = (LPWSTR)_TW("str_ai_output_price");
+        ListView_SetColumn(hTab2ListView, 5, &col);
+    }
+
+    if (hTab3DeleteBtn) SetWindowTextW(hTab3DeleteBtn, _TW("str_ai_tab3_btn_delete"));
+    if (hTab3ClearBtn) SetWindowTextW(hTab3ClearBtn, _TW("str_ai_tab3_btn_clear"));
+    if (hTab3Hint) SetWindowTextW(hTab3Hint, _TW("str_ai_tab3_hint"));
+
+    if (hTab3ListView) {
+        LVCOLUMNW col = {0};
+        col.mask = LVCF_TEXT;
+        col.pszText = (LPWSTR)_TW("str_ai_tab3_col_priority");
+        ListView_SetColumn(hTab3ListView, 0, &col);
+        col.pszText = (LPWSTR)_TW("str_ai_provider");
+        ListView_SetColumn(hTab3ListView, 1, &col);
+        col.pszText = (LPWSTR)_TW("str_ai_model");
+        ListView_SetColumn(hTab3ListView, 2, &col);
+        col.pszText = (LPWSTR)_TW("str_ai_rating");
+        ListView_SetColumn(hTab3ListView, 3, &col);
+        col.pszText = (LPWSTR)_TW("str_ai_response");
+        ListView_SetColumn(hTab3ListView, 4, &col);
+        col.pszText = (LPWSTR)_TW("str_ai_input_price");
+        ListView_SetColumn(hTab3ListView, 5, &col);
+        col.pszText = (LPWSTR)_TW("str_ai_output_price");
+        ListView_SetColumn(hTab3ListView, 6, &col);
+    }
+
+    ai_agent_refresh_settings_list();
+    ai_agent_refresh_catalog_list();
+    ai_agent_refresh_used_models_list();
+}
+

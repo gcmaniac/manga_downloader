@@ -46,5 +46,6 @@ void ai_agent_delete_selected_used_models(HWND hwnd);
 void ai_agent_refresh_settings_list(void);
 void ai_agent_refresh_catalog_list(void);
 void ai_agent_refresh_used_models_list(void);
+void ai_agent_refresh_lang(void);
 
 #endif // AI_AGENT_H

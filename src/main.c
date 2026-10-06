@@ -10,6 +10,8 @@
 #include "resource.h"
 #include "ai_agent.h"
 #include "db_migration.h"
+#include "config.h"
+#include "lang.h"
 
 #define LOG_BUFFER_SIZE         131072
 #define ID_URL_EDIT             101
@@ -23,6 +25,7 @@
 #define ID_SITE_STATUS          109
 #define ID_CHAPTER_FILTER_EDIT  110
 #define ID_ONLY_MISSING_CHK     111
+#define ID_LANG_COMBO           115
 #define ID_MAIN_TAB             150
 
 #include "scrapers/scrapers.h"
@@ -49,9 +52,17 @@ static HWND hOverwriteChk;
 static HWND hStartBtn;
 static HWND hStopBtn;
 static HWND hLogEdit;
+static HWND hLblUrl = NULL;
+static HWND hLblFolder = NULL;
+static HWND hBrowseBtn = NULL;
+static HWND hDefBtn = NULL;
+static HWND hLblFilter = NULL;
+static HWND hLblLog = NULL;
+static HWND hLblLang = NULL;
+static HWND hLangCombo = NULL;
 
 static HWND hMainTab = NULL;
-static HWND g_home_controls[20];
+static HWND g_home_controls[32];
 static int g_home_ctrl_count = 0;
 
 static void show_home_controls(bool show) {
@@ -130,7 +141,7 @@ static void update_site_status_ui(void) {
     wchar_t url_w[1024];
     GetWindowTextW(hUrlEdit, url_w, 1024);
     if (wcslen(url_w) == 0) {
-        SetWindowTextW(hSiteStatus, L"Status Web: (Silakan tempelkan link URL manga di atas)");
+        SetWindowTextW(hSiteStatus, _TW("str_site_status_placeholder"));
         return;
     }
 
@@ -142,9 +153,9 @@ static void update_site_status_ui(void) {
     if (scraper) {
         wchar_t sname_w[256];
         MultiByteToWideChar(CP_UTF8, 0, scraper->display_name, -1, sname_w, 256);
-        _snwprintf(status_msg, 512, L"Status Web: %s  |  Scraper: %s [Didukung]", sname_w, sname_w);
+        _snwprintf(status_msg, 512, _TW("str_site_status_supported"), sname_w, sname_w);
     } else {
-        _snwprintf(status_msg, 512, L"Status Web: Format URL belum dikenali");
+        _snwprintf(status_msg, 512, L"%s", _TW("str_site_status_unknown"));
     }
 
     SetWindowTextW(hSiteStatus, status_msg);
@@ -225,7 +236,7 @@ char *fetch_url(const char *url, const char *referer) {
             if (is_cf_challenge) {
                 char cf_log[512];
                 snprintf(cf_log, sizeof(cf_log),
-                         "[Cloudflare] Peringatan: Halaman terproteksi Cloudflare Challenge (HTTP %ld). Percobaan %d/%d...",
+                         _T("str_log_cf_challenge"),
                          http_code, attempt, max_retries);
                 append_log(cf_log);
 
@@ -236,7 +247,7 @@ char *fetch_url(const char *url, const char *referer) {
                 }
             } else if (http_code == 200) {
                 if (strstr(chunk.memory, "cf-ray") != NULL || strstr(chunk.memory, "cloudflare") != NULL) {
-                    append_log("[Cloudflare] Berhasil melewati Cloudflare (HTTP 200 OK via Browser Headers & Cookie Sync).");
+                    append_log(_T("str_log_cf_bypass"));
                 }
             }
 
@@ -597,33 +608,33 @@ static DWORD WINAPI DownloadThreadProc(LPVOID lpParam) {
     char logmsg[2048];
     snprintf(logmsg, sizeof(logmsg), "=======================================================");
     append_log(logmsg);
-    snprintf(logmsg, sizeof(logmsg), "=== Memulai Proses Manga Downloader Native ===");
+    snprintf(logmsg, sizeof(logmsg), "%s", _T("str_log_process_started"));
     append_log(logmsg);
     snprintf(logmsg, sizeof(logmsg), "=======================================================");
     append_log(logmsg);
-    snprintf(logmsg, sizeof(logmsg), "[Langkah 1/5] Inisialisasi engine & deteksi website: %s", scraper->display_name);
+    snprintf(logmsg, sizeof(logmsg), _T("str_log_step_1"), scraper->display_name);
     append_log(logmsg);
-    snprintf(logmsg, sizeof(logmsg), "              Link Utama   : %s", base_url);
+    snprintf(logmsg, sizeof(logmsg), _T("str_log_main_link"), base_url);
     append_log(logmsg);
-    snprintf(logmsg, sizeof(logmsg), "              Folder Target: %s", target_root);
+    snprintf(logmsg, sizeof(logmsg), _T("str_log_target_folder"), target_root);
     append_log(logmsg);
 
     if (only_missing) {
-        append_log("              Mode Filter  : Hanya cari & download chapter yang belum ada di hardisk");
+        append_log(_T("str_log_filter_mode_missing"));
     } else {
-        snprintf(logmsg, sizeof(logmsg), "              Mode Filter  : %s", chapter_filter[0] ? chapter_filter : "(Semua Chapter)");
+        snprintf(logmsg, sizeof(logmsg), _T("str_log_filter_mode"), chapter_filter[0] ? chapter_filter : _T("str_log_all_chapters"));
         append_log(logmsg);
     }
 
-    snprintf(logmsg, sizeof(logmsg), "              Mode Berkas  : %s", overwrite ? "Timpa (Overwrite)" : "Lewati jika sudah ada (Skip)");
+    snprintf(logmsg, sizeof(logmsg), _T("str_log_file_mode"), overwrite ? _T("str_log_file_mode_overwrite") : _T("str_log_file_mode_skip"));
     append_log(logmsg);
-    append_log("[Cloudflare] Menyiapkan browser headers & container sesi cookies...");
+    append_log(_T("str_log_cf_setup"));
 
     // 1. Fetch main page HTML
-    append_log("\n[Langkah 2/5] Mengambil halaman utama manga & memverifikasi akses...");
+    append_log(_T("str_log_step_2"));
     char *main_html = fetch_url(base_url, NULL);
     if (!main_html) {
-        append_log("[Error] Gagal mengakses link utama manga. Periksa koneksi internet atau proteksi Cloudflare.");
+        append_log(_T("str_log_err_main_page"));
         is_downloading = false;
         EnableWindow(hStartBtn, TRUE);
         EnableWindow(hStopBtn, FALSE);
@@ -631,10 +642,10 @@ static DWORD WINAPI DownloadThreadProc(LPVOID lpParam) {
     }
 
     // 2. Scan chapters
-    append_log("[Langkah 3/5] Memindai seluruh daftar chapter di situs...");
+    append_log(_T("str_log_step_3"));
     ChapterItem *chapters = (ChapterItem *)calloc(MAX_CHAPTERS, sizeof(ChapterItem));
     if (!chapters) {
-        append_log("[Error] Gagal mengalokasikan memori untuk daftar chapter.");
+        append_log(_T("str_log_err_mem_chapters"));
         free(main_html);
         is_downloading = false;
         EnableWindow(hStartBtn, TRUE);
@@ -647,12 +658,12 @@ static DWORD WINAPI DownloadThreadProc(LPVOID lpParam) {
 
     if (total_chapters == 0) {
         if (strstr(base_url, "/reader/") != NULL || strstr(base_url, "-chapter-") != NULL || strstr(base_url, "/chapter/") != NULL) {
-            append_log("Link yang dimasukkan terdeteksi sebagai single chapter.");
+            append_log(_T("str_log_single_chapter"));
             snprintf(chapters[0].url, sizeof(chapters[0].url), "%s", base_url);
             snprintf(chapters[0].name, sizeof(chapters[0].name), "%s", "Chapter_Single");
             total_chapters = 1;
         } else {
-            append_log("[Info] Tidak ditemukan daftar chapter pada halaman tersebut.");
+            append_log(_T("str_log_no_chapters_found"));
             free(chapters);
             is_downloading = false;
             EnableWindow(hStartBtn, TRUE);
@@ -660,12 +671,12 @@ static DWORD WINAPI DownloadThreadProc(LPVOID lpParam) {
             return 0;
         }
     } else {
-        snprintf(logmsg, sizeof(logmsg), "              -> Berhasil memindai: Ditemukan total %d chapter di situs.", total_chapters);
+        snprintf(logmsg, sizeof(logmsg), _T("str_log_scan_success"), total_chapters);
         append_log(logmsg);
 
         // Sort chronologically from lowest chapter number to highest
         if (total_chapters > 1 && chapters[0].chapter_num > chapters[total_chapters - 1].chapter_num) {
-            append_log("              -> Menyesuaikan urutan: Mengurutkan mulai dari chapter paling awal...");
+            append_log(_T("str_log_adjust_order"));
             for (int i = 0; i < total_chapters / 2; i++) {
                 ChapterItem temp = chapters[i];
                 chapters[i] = chapters[total_chapters - 1 - i];
@@ -675,7 +686,7 @@ static DWORD WINAPI DownloadThreadProc(LPVOID lpParam) {
     }
 
     // Count how many chapters will be downloaded
-    append_log("\n[Langkah 4/5] Memeriksa hardisk: mencocokkan nomor chapter (pola: 'Chapter 1', '001', 'Chapter 1-eng-li', dll.)...");
+    append_log(_T("str_log_step_4"));
     int to_download_count = 0;
     if (only_missing) {
         for (int i = 0; i < total_chapters; i++) {
@@ -683,7 +694,7 @@ static DWORD WINAPI DownloadThreadProc(LPVOID lpParam) {
                 to_download_count++;
             }
         }
-        snprintf(logmsg, sizeof(logmsg), "              -> Hasil scan: Terdeteksi %d chapter baru/belum ada (dari total %d chapter di situs).",
+        snprintf(logmsg, sizeof(logmsg), _T("str_log_scan_missing_result"),
                  to_download_count, total_chapters);
         append_log(logmsg);
     } else {
@@ -693,7 +704,7 @@ static DWORD WINAPI DownloadThreadProc(LPVOID lpParam) {
             }
         }
         if (chapter_filter[0] != '\0') {
-            snprintf(logmsg, sizeof(logmsg), "              -> Filter aktif ['%s']: %d dari %d chapter akan diunduh.",
+            snprintf(logmsg, sizeof(logmsg), _T("str_log_active_filter"),
                      chapter_filter, to_download_count, total_chapters);
             append_log(logmsg);
         }
@@ -702,9 +713,9 @@ static DWORD WINAPI DownloadThreadProc(LPVOID lpParam) {
 
     if (to_download_count == 0) {
         if (only_missing) {
-            append_log("[Info] Semua chapter di situs sudah lengkap di folder target! Tidak ada chapter baru.");
+            append_log(_T("str_log_all_complete"));
         } else {
-            append_log("[Peringatan] Tidak ada chapter yang cocok dengan filter yang ditentukan.");
+            append_log(_T("str_log_no_filter_match"));
         }
         free(chapters);
         is_downloading = false;
@@ -714,13 +725,13 @@ static DWORD WINAPI DownloadThreadProc(LPVOID lpParam) {
     }
 
     // 3. Loop through each selected chapter
-    append_log("\n[Langkah 5/5] Mengunduh gambar untuk setiap chapter...");
+    append_log(_T("str_log_step_5"));
     static char page_urls[MAX_PAGES][1024];
     int current_processed = 0;
 
     for (int ch_idx = 0; ch_idx < total_chapters; ch_idx++) {
         if (stop_requested) {
-            append_log(">>> Pengunduhan dihentikan oleh pengguna.");
+            append_log(_T("str_log_user_stopped"));
             break;
         }
 
@@ -736,7 +747,7 @@ static DWORD WINAPI DownloadThreadProc(LPVOID lpParam) {
         }
 
         current_processed++;
-        snprintf(logmsg, sizeof(logmsg), "\n--- [%d/%d] Memproses: %s (No: %d) ---",
+        snprintf(logmsg, sizeof(logmsg), _T("str_log_processing_chapter"),
                  current_processed, to_download_count, chapters[ch_idx].name, chapters[ch_idx].chapter_num);
         append_log(logmsg);
 
@@ -750,7 +761,7 @@ static DWORD WINAPI DownloadThreadProc(LPVOID lpParam) {
         // Fetch chapter reader HTML with referer
         char *ch_html = fetch_url(chapters[ch_idx].url, base_url);
         if (!ch_html) {
-            snprintf(logmsg, sizeof(logmsg), "[Warning] Gagal membuka reader chapter: %s", chapters[ch_idx].url);
+            snprintf(logmsg, sizeof(logmsg), _T("str_log_warn_open_reader"), chapters[ch_idx].url);
             append_log(logmsg);
             continue;
         }
@@ -760,11 +771,11 @@ static DWORD WINAPI DownloadThreadProc(LPVOID lpParam) {
         free(ch_html);
 
         if (total_pages == 0) {
-            append_log("-> Tidak ada gambar yang ditemukan pada chapter ini.");
+            append_log(_T("str_log_no_images_in_chapter"));
             continue;
         }
 
-        snprintf(logmsg, sizeof(logmsg), "-> Ditemukan %d gambar halaman.", total_pages);
+        snprintf(logmsg, sizeof(logmsg), _T("str_log_images_found"), total_pages);
         append_log(logmsg);
 
         int downloaded_count = 0;
@@ -786,20 +797,20 @@ static DWORD WINAPI DownloadThreadProc(LPVOID lpParam) {
             } else if (rc == DL_SKIPPED) {
                 skipped_count++;
             } else if (rc == DL_ABORTED) {
-                append_log("-> Download dibatalkan saat sedang berlangsung.");
+                append_log(_T("str_log_download_aborted"));
                 break;
             } else {
-                snprintf(logmsg, sizeof(logmsg), "-> [Gagal] Gambar %03d.%s (%.500s)", p_idx + 1, ext, page_urls[p_idx]);
+                snprintf(logmsg, sizeof(logmsg), _T("str_log_image_fail"), p_idx + 1, ext, page_urls[p_idx]);
                 append_log(logmsg);
             }
         }
 
         if (downloaded_count > 0 && skipped_count > 0) {
-            snprintf(logmsg, sizeof(logmsg), "-> Selesai: %d gambar baru diunduh, %d dilewati (sudah ada).", downloaded_count, skipped_count);
+            snprintf(logmsg, sizeof(logmsg), _T("str_log_chapter_finish_mixed"), downloaded_count, skipped_count);
         } else if (downloaded_count > 0) {
-            snprintf(logmsg, sizeof(logmsg), "-> Selesai: Semua %d gambar berhasil diunduh.", downloaded_count);
+            snprintf(logmsg, sizeof(logmsg), _T("str_log_chapter_finish_all"), downloaded_count);
         } else {
-            snprintf(logmsg, sizeof(logmsg), "-> Dilewati: Semua %d gambar sudah ada di folder.", skipped_count);
+            snprintf(logmsg, sizeof(logmsg), _T("str_log_chapter_finish_skip"), skipped_count);
         }
         append_log(logmsg);
     }
@@ -808,11 +819,11 @@ static DWORD WINAPI DownloadThreadProc(LPVOID lpParam) {
 
     if (stop_requested) {
         append_log("\n=========================================");
-        append_log("STATUS: Pengunduhan DIBATALKAN oleh pengguna.");
+        append_log(_T("str_log_status_cancelled"));
         append_log("=========================================");
     } else {
         append_log("\n=========================================");
-        append_log("STATUS: SEMUA PENGUNDUHAN BERHASIL SELESAI!");
+        append_log(_T("str_log_status_success"));
         append_log("=========================================");
     }
 
@@ -865,21 +876,21 @@ static void extract_manga_title_from_url(const wchar_t *url, wchar_t *title_out,
 
 static void start_download(HWND hwnd) {
     if (is_downloading) {
-        append_log("Unduhan sedang berjalan.");
+        append_log(_T("str_log_download_in_progress"));
         return;
     }
 
     wchar_t url_w[1024];
     GetWindowTextW(hUrlEdit, url_w, 1024);
     if (wcslen(url_w) == 0) {
-        MessageBoxW(hwnd, L"Link utama manga belum diisi!", L"Peringatan", MB_OK | MB_ICONWARNING);
+        MessageBoxW(hwnd, _TW("str_alert_url_empty"), _TW("str_alert_warning"), MB_OK | MB_ICONWARNING);
         return;
     }
     WideCharToMultiByte(CP_UTF8, 0, url_w, -1, base_url, 1024, NULL, NULL);
 
     GetWindowTextW(hFolderEdit, folder_path, MAX_PATH);
     if (wcslen(folder_path) == 0) {
-        MessageBoxW(hwnd, L"Folder tujuan belum dipilih!", L"Peringatan", MB_OK | MB_ICONWARNING);
+        MessageBoxW(hwnd, _TW("str_alert_folder_empty"), _TW("str_alert_warning"), MB_OK | MB_ICONWARNING);
         return;
     }
     CreateDirectoryW(folder_path, NULL);
@@ -910,6 +921,124 @@ static void apply_gui_font(HWND hwndCtrl) {
     SendMessageW(hwndCtrl, WM_SETFONT, (WPARAM)hFont, TRUE);
 }
 
+static void draw_lang_combo_item(LPDRAWITEMSTRUCT lpdis) {
+    if (lpdis->itemID == (UINT)-1) return;
+
+    bool is_selected = (lpdis->itemState & ODS_SELECTED);
+    COLORREF bg_color = is_selected ? GetSysColor(COLOR_HIGHLIGHT) : GetSysColor(COLOR_WINDOW);
+    COLORREF text_color = is_selected ? GetSysColor(COLOR_HIGHLIGHTTEXT) : GetSysColor(COLOR_WINDOWTEXT);
+
+    HBRUSH hBgBrush = CreateSolidBrush(bg_color);
+    FillRect(lpdis->hDC, &lpdis->rcItem, hBgBrush);
+    DeleteObject(hBgBrush);
+
+    // Flag dimensions: 20x14 px, vertically centered
+    int flag_w = 20;
+    int flag_h = 14;
+    int flag_x = lpdis->rcItem.left + 6;
+    int flag_y = lpdis->rcItem.top + (lpdis->rcItem.bottom - lpdis->rcItem.top - flag_h) / 2;
+
+    int item_type = (int)lpdis->itemData; // 0 = LANG_ID, 1 = LANG_EN
+
+    if (item_type == (int)LANG_ID) {
+        // --- Indonesian Flag (Merah Putih) ---
+        RECT rcTop = { flag_x, flag_y, flag_x + flag_w, flag_y + (flag_h / 2) };
+        HBRUSH hRedBrush = CreateSolidBrush(RGB(220, 20, 40));
+        FillRect(lpdis->hDC, &rcTop, hRedBrush);
+        DeleteObject(hRedBrush);
+
+        RECT rcBottom = { flag_x, flag_y + (flag_h / 2), flag_x + flag_w, flag_y + flag_h };
+        HBRUSH hWhiteBrush = CreateSolidBrush(RGB(255, 255, 255));
+        FillRect(lpdis->hDC, &rcBottom, hWhiteBrush);
+        DeleteObject(hWhiteBrush);
+    } else {
+        // --- USA Flag (Stars and Stripes) ---
+        HBRUSH hUsRed = CreateSolidBrush(RGB(179, 25, 66));
+        HBRUSH hUsWhite = CreateSolidBrush(RGB(255, 255, 255));
+        for (int s = 0; s < 7; s++) {
+            RECT rcStripe = { flag_x, flag_y + s * 2, flag_x + flag_w, flag_y + (s + 1) * 2 };
+            FillRect(lpdis->hDC, &rcStripe, (s % 2 == 0) ? hUsRed : hUsWhite);
+        }
+        DeleteObject(hUsRed);
+        DeleteObject(hUsWhite);
+
+        // Blue Canton (top-left 9x8)
+        RECT rcCanton = { flag_x, flag_y, flag_x + 9, flag_y + 8 };
+        HBRUSH hCanton = CreateSolidBrush(RGB(10, 49, 97));
+        FillRect(lpdis->hDC, &rcCanton, hCanton);
+        DeleteObject(hCanton);
+
+        // Star dots (white pixels inside canton)
+        SetPixel(lpdis->hDC, flag_x + 2, flag_y + 2, RGB(255, 255, 255));
+        SetPixel(lpdis->hDC, flag_x + 6, flag_y + 2, RGB(255, 255, 255));
+        SetPixel(lpdis->hDC, flag_x + 4, flag_y + 4, RGB(255, 255, 255));
+        SetPixel(lpdis->hDC, flag_x + 2, flag_y + 6, RGB(255, 255, 255));
+        SetPixel(lpdis->hDC, flag_x + 6, flag_y + 6, RGB(255, 255, 255));
+    }
+
+    // Border around the flag
+    RECT rcFlag = { flag_x, flag_y, flag_x + flag_w, flag_y + flag_h };
+    HBRUSH hBorder = CreateSolidBrush(RGB(160, 160, 160));
+    FrameRect(lpdis->hDC, &rcFlag, hBorder);
+    DeleteObject(hBorder);
+
+    // Get item text
+    wchar_t text[128] = {0};
+    SendMessageW(lpdis->hwndItem, CB_GETLBTEXT, lpdis->itemID, (LPARAM)text);
+
+    // Draw text
+    SetTextColor(lpdis->hDC, text_color);
+    SetBkMode(lpdis->hDC, TRANSPARENT);
+    HFONT hFont = (HFONT)SendMessageW(lpdis->hwndItem, WM_GETFONT, 0, 0);
+    HFONT hOldFont = NULL;
+    if (hFont) hOldFont = (HFONT)SelectObject(lpdis->hDC, hFont);
+
+    RECT rcText = lpdis->rcItem;
+    rcText.left = flag_x + flag_w + 8;
+    DrawTextW(lpdis->hDC, text, -1, &rcText, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
+
+    if (hOldFont) SelectObject(lpdis->hDC, hOldFont);
+
+    if (lpdis->itemState & ODS_FOCUS) {
+        DrawFocusRect(lpdis->hDC, &lpdis->rcItem);
+    }
+}
+
+static void apply_language_change(HWND hwnd) {
+    SetWindowTextW(hwnd, _TW("str_app_title"));
+
+    if (hMainTab) {
+        TCITEMW tie = {0};
+        tie.mask = TCIF_TEXT;
+        tie.pszText = (LPWSTR)_TW("str_tab_home");
+        TabCtrl_SetItem(hMainTab, 0, &tie);
+        tie.pszText = (LPWSTR)_TW("str_tab_ai_test");
+        TabCtrl_SetItem(hMainTab, 1, &tie);
+        tie.pszText = (LPWSTR)_TW("str_tab_ai_catalog");
+        TabCtrl_SetItem(hMainTab, 2, &tie);
+        tie.pszText = (LPWSTR)_TW("str_tab_ai_active");
+        TabCtrl_SetItem(hMainTab, 3, &tie);
+    }
+
+    if (hLblUrl) SetWindowTextW(hLblUrl, _TW("str_main_link"));
+    if (hLblFolder) SetWindowTextW(hLblFolder, _TW("str_folder_label"));
+    if (hBrowseBtn) SetWindowTextW(hBrowseBtn, _TW("str_btn_browse"));
+    if (hDefBtn) SetWindowTextW(hDefBtn, _TW("str_btn_default"));
+    if (hLblFilter) SetWindowTextW(hLblFilter, _TW("str_filter_label"));
+    if (hOnlyMissingChk) SetWindowTextW(hOnlyMissingChk, _TW("str_only_missing_chk"));
+    if (hOverwriteChk) SetWindowTextW(hOverwriteChk, _TW("str_overwrite_chk"));
+    if (hStartBtn) SetWindowTextW(hStartBtn, _TW("str_btn_start"));
+    if (hStopBtn) SetWindowTextW(hStopBtn, _TW("str_btn_stop"));
+    if (hLblLog) SetWindowTextW(hLblLog, _TW("str_log_label"));
+    if (hLblLang) SetWindowTextW(hLblLang, _TW("str_lang_label"));
+
+    update_site_status_ui();
+    ai_agent_refresh_lang();
+
+    InvalidateRect(hwnd, NULL, TRUE);
+    UpdateWindow(hwnd);
+}
+
 LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
     switch (uMsg) {
     case WM_CREATE: {
@@ -924,20 +1053,42 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) 
 
         TCITEMW tie = {0};
         tie.mask = TCIF_TEXT;
-        tie.pszText = L"Download Manga (Home)";
+        tie.pszText = (LPWSTR)_TW("str_tab_home");
         TabCtrl_InsertItem(hMainTab, 0, &tie);
-        tie.pszText = L"Pengaturan & Uji AI";
+        tie.pszText = (LPWSTR)_TW("str_tab_ai_test");
         TabCtrl_InsertItem(hMainTab, 1, &tie);
-        tie.pszText = L"Katalog Model Teruji";
+        tie.pszText = (LPWSTR)_TW("str_tab_ai_catalog");
         TabCtrl_InsertItem(hMainTab, 2, &tie);
-        tie.pszText = L"Model AI Digunakan";
+        tie.pszText = (LPWSTR)_TW("str_tab_ai_active");
         TabCtrl_InsertItem(hMainTab, 3, &tie);
 
         // Label: Link Utama Manga
-        HWND hLblUrl = CreateWindowW(L"STATIC", L"Link Utama Manga:", WS_CHILD | WS_VISIBLE,
-                                     25, 38, 200, 18, hwnd, NULL, hInst, NULL);
+        hLblUrl = CreateWindowW(L"STATIC", _TW("str_main_link"), WS_CHILD | WS_VISIBLE,
+                                25, 38, 200, 18, hwnd, NULL, hInst, NULL);
         apply_gui_font(hLblUrl);
         g_home_controls[g_home_ctrl_count++] = hLblUrl;
+
+        // Label: Bahasa / Language
+        hLblLang = CreateWindowW(L"STATIC", _TW("str_lang_label"), WS_CHILD | WS_VISIBLE | SS_RIGHT,
+                                 410, 36, 65, 18, hwnd, NULL, hInst, NULL);
+        apply_gui_font(hLblLang);
+        g_home_controls[g_home_ctrl_count++] = hLblLang;
+
+        // Input Select: Language ComboBox with Flags
+        hLangCombo = CreateWindowExW(0, L"COMBOBOX", L"",
+                                     WS_CHILD | WS_VISIBLE | CBS_DROPDOWNLIST | CBS_OWNERDRAWFIXED | CBS_HASSTRINGS | WS_VSCROLL,
+                                     480, 31, 220, 150, hwnd, (HMENU)ID_LANG_COMBO, hInst, NULL);
+        apply_gui_font(hLangCombo);
+        g_home_controls[g_home_ctrl_count++] = hLangCombo;
+
+        SendMessageW(hLangCombo, CB_ADDSTRING, 0, (LPARAM)L"Indonesia (ID) - id");
+        SendMessageW(hLangCombo, CB_SETITEMDATA, 0, (LPARAM)LANG_ID);
+
+        SendMessageW(hLangCombo, CB_ADDSTRING, 0, (LPARAM)L"English (USA) - us");
+        SendMessageW(hLangCombo, CB_SETITEMDATA, 1, (LPARAM)LANG_EN);
+
+        Language cur_lang = load_language();
+        SendMessageW(hLangCombo, CB_SETCURSEL, (cur_lang == LANG_EN) ? 1 : 0, 0);
 
         // Edit: URL
         hUrlEdit = CreateWindowExW(WS_EX_CLIENTEDGE, L"EDIT", L"",
@@ -947,15 +1098,15 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) 
         g_home_controls[g_home_ctrl_count++] = hUrlEdit;
 
         // Status Label: Detected Website & Engine
-        hSiteStatus = CreateWindowW(L"STATIC", L"Status Web: (Silakan tempelkan link URL manga di atas)",
+        hSiteStatus = CreateWindowW(L"STATIC", _TW("str_site_status_placeholder"),
                                    WS_CHILD | WS_VISIBLE | SS_LEFTNOWORDWRAP,
                                    25, 86, 675, 18, hwnd, (HMENU)ID_SITE_STATUS, hInst, NULL);
         apply_gui_font(hSiteStatus);
         g_home_controls[g_home_ctrl_count++] = hSiteStatus;
 
         // Label: Folder Penyimpanan
-        HWND hLblFolder = CreateWindowW(L"STATIC", L"Folder Penyimpanan:", WS_CHILD | WS_VISIBLE,
-                                       25, 110, 200, 18, hwnd, NULL, hInst, NULL);
+        hLblFolder = CreateWindowW(L"STATIC", _TW("str_folder_label"), WS_CHILD | WS_VISIBLE,
+                                   25, 110, 200, 18, hwnd, NULL, hInst, NULL);
         apply_gui_font(hLblFolder);
         g_home_controls[g_home_ctrl_count++] = hLblFolder;
 
@@ -967,21 +1118,21 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) 
         g_home_controls[g_home_ctrl_count++] = hFolderEdit;
 
         // Button: Browse...
-        HWND hBrowseBtn = CreateWindowW(L"BUTTON", L"Browse...", WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
-                                       508, 129, 90, 26, hwnd, (HMENU)ID_BROWSE_BTN, hInst, NULL);
+        hBrowseBtn = CreateWindowW(L"BUTTON", _TW("str_btn_browse"), WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
+                                   508, 129, 90, 26, hwnd, (HMENU)ID_BROWSE_BTN, hInst, NULL);
         apply_gui_font(hBrowseBtn);
         g_home_controls[g_home_ctrl_count++] = hBrowseBtn;
 
         // Button: Default
-        HWND hDefBtn = CreateWindowW(L"BUTTON", L"Default", WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
-                                    605, 129, 95, 26, hwnd, (HMENU)ID_DEFAULT_BTN, hInst, NULL);
+        hDefBtn = CreateWindowW(L"BUTTON", _TW("str_btn_default"), WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
+                                605, 129, 95, 26, hwnd, (HMENU)ID_DEFAULT_BTN, hInst, NULL);
         apply_gui_font(hDefBtn);
         g_home_controls[g_home_ctrl_count++] = hDefBtn;
 
         // Label: Pilih Chapter
-        HWND hLblFilter = CreateWindowW(L"STATIC", L"Pilih Chapter (Kosongkan = Semua, contoh: 1, 2-5, 116-end):",
-                                        WS_CHILD | WS_VISIBLE,
-                                        25, 160, 500, 18, hwnd, NULL, hInst, NULL);
+        hLblFilter = CreateWindowW(L"STATIC", _TW("str_filter_label"),
+                                   WS_CHILD | WS_VISIBLE,
+                                   25, 160, 500, 18, hwnd, NULL, hInst, NULL);
         apply_gui_font(hLblFilter);
         g_home_controls[g_home_ctrl_count++] = hLblFilter;
 
@@ -993,7 +1144,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) 
         g_home_controls[g_home_ctrl_count++] = hChapterFilterEdit;
 
         // Checkbox: Hanya Download Chapter Belum Ada
-        hOnlyMissingChk = CreateWindowW(L"BUTTON", L"Hanya cari & download chapter yang belum ada di folder (Otomatis lewati yang sudah ada)",
+        hOnlyMissingChk = CreateWindowW(L"BUTTON", _TW("str_only_missing_chk"),
                                        WS_CHILD | WS_VISIBLE | BS_AUTOCHECKBOX,
                                        25, 210, 675, 22, hwnd, (HMENU)ID_ONLY_MISSING_CHK, hInst, NULL);
         apply_gui_font(hOnlyMissingChk);
@@ -1001,7 +1152,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) 
         g_home_controls[g_home_ctrl_count++] = hOnlyMissingChk;
 
         // Checkbox: Overwrite / Skip
-        hOverwriteChk = CreateWindowW(L"BUTTON", L"Timpa file jika sudah ada (Default: Skip/Lewati jika tidak dicentang)",
+        hOverwriteChk = CreateWindowW(L"BUTTON", _TW("str_overwrite_chk"),
                                      WS_CHILD | WS_VISIBLE | BS_AUTOCHECKBOX,
                                      25, 234, 675, 22, hwnd, (HMENU)ID_OVERWRITE_CHK, hInst, NULL);
         apply_gui_font(hOverwriteChk);
@@ -1009,21 +1160,21 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) 
         g_home_controls[g_home_ctrl_count++] = hOverwriteChk;
 
         // Button: Start
-        hStartBtn = CreateWindowW(L"BUTTON", L"Start Download", WS_CHILD | WS_VISIBLE | BS_DEFPUSHBUTTON,
+        hStartBtn = CreateWindowW(L"BUTTON", _TW("str_btn_start"), WS_CHILD | WS_VISIBLE | BS_DEFPUSHBUTTON,
                                   25, 264, 140, 30, hwnd, (HMENU)ID_START_BTN, hInst, NULL);
         apply_gui_font(hStartBtn);
         g_home_controls[g_home_ctrl_count++] = hStartBtn;
 
         // Button: Stop
-        hStopBtn = CreateWindowW(L"BUTTON", L"Stop", WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
+        hStopBtn = CreateWindowW(L"BUTTON", _TW("str_btn_stop"), WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
                                  175, 264, 100, 30, hwnd, (HMENU)ID_STOP_BTN, hInst, NULL);
         apply_gui_font(hStopBtn);
         EnableWindow(hStopBtn, FALSE);
         g_home_controls[g_home_ctrl_count++] = hStopBtn;
 
         // Label: Log Aktivitas
-        HWND hLblLog = CreateWindowW(L"STATIC", L"Log Aktivitas:", WS_CHILD | WS_VISIBLE,
-                                     25, 302, 200, 18, hwnd, NULL, hInst, NULL);
+        hLblLog = CreateWindowW(L"STATIC", _TW("str_log_label"), WS_CHILD | WS_VISIBLE,
+                                25, 302, 200, 18, hwnd, NULL, hInst, NULL);
         apply_gui_font(hLblLog);
         g_home_controls[g_home_ctrl_count++] = hLblLog;
 
@@ -1041,7 +1192,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) 
         if (!db_migration_run_all(hwnd, append_log, mig_err, sizeof(mig_err))) {
             wchar_t werr[512];
             MultiByteToWideChar(CP_UTF8, 0, mig_err, -1, werr, 512);
-            MessageBoxW(hwnd, werr, L"Peringatan: Migrasi Basis Data Terkendala", MB_ICONWARNING | MB_OK);
+            MessageBoxW(hwnd, werr, _TW("str_alert_db_migration_error"), MB_ICONWARNING | MB_OK);
         }
 
         // Initialize AI Agent settings controls & database
@@ -1049,6 +1200,22 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) 
 
         // Show Home tab by default
         switch_main_tab(0);
+        break;
+    }
+    case WM_MEASUREITEM: {
+        LPMEASUREITEMSTRUCT lpmis = (LPMEASUREITEMSTRUCT)lParam;
+        if (lpmis && lpmis->CtlID == ID_LANG_COMBO) {
+            lpmis->itemHeight = 22;
+            return TRUE;
+        }
+        break;
+    }
+    case WM_DRAWITEM: {
+        LPDRAWITEMSTRUCT lpdis = (LPDRAWITEMSTRUCT)lParam;
+        if (lpdis && lpdis->CtlID == ID_LANG_COMBO) {
+            draw_lang_combo_item(lpdis);
+            return TRUE;
+        }
         break;
     }
     case WM_COMMAND: {
@@ -1059,6 +1226,16 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) 
         }
 
         switch (id) {
+        case ID_LANG_COMBO:
+            if (HIWORD(wParam) == CBN_SELCHANGE) {
+                int sel = (int)SendMessageW(hLangCombo, CB_GETCURSEL, 0, 0);
+                Language new_lang = (sel == 1) ? LANG_EN : LANG_ID;
+                save_language(new_lang);
+                lang_init(language_code(new_lang));
+                apply_language_change(hwnd);
+            }
+            break;
+
         case ID_URL_EDIT:
             if (HIWORD(wParam) == EN_CHANGE) {
                 update_site_status_ui();
@@ -1078,14 +1255,14 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) 
         case ID_STOP_BTN:
             if (is_downloading) {
                 stop_requested = true;
-                append_log("Permintaan stop dikirim. Menunggu proses saat ini selesai...");
+                append_log(_T("str_log_stop_requested"));
             }
             break;
 
         case ID_BROWSE_BTN: {
             BROWSEINFOW bi = { 0 };
             bi.hwndOwner = hwnd;
-            bi.lpszTitle = L"Pilih Folder Penyimpanan Manga:";
+            bi.lpszTitle = _TW("str_browse_title");
             bi.ulFlags = BIF_RETURNONLYFSDIRS | BIF_NEWDIALOGSTYLE;
             PIDLIST_ABSOLUTE pidl = SHBrowseForFolderW(&bi);
             if (pidl != NULL) {
@@ -1102,7 +1279,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) 
             wchar_t url_buf[1024];
             GetWindowTextW(hUrlEdit, url_buf, 1024);
             if (wcslen(url_buf) == 0) {
-                MessageBoxW(hwnd, L"Silakan isi Link Utama Manga terlebih dahulu!", L"Info", MB_OK | MB_ICONINFORMATION);
+                MessageBoxW(hwnd, _TW("str_alert_fill_url_first"), _TW("str_alert_info"), MB_OK | MB_ICONINFORMATION);
                 break;
             }
 
@@ -1120,7 +1297,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) 
                 CreateDirectoryW(defaultPath, NULL);
 
                 SetWindowTextW(hFolderEdit, defaultPath);
-                append_log("Folder default disetel ke:");
+                append_log(_T("str_log_default_folder_set"));
                 char defaultPathA[MAX_PATH];
                 WideCharToMultiByte(CP_UTF8, 0, defaultPath, -1, defaultPathA, MAX_PATH, NULL, NULL);
                 append_log(defaultPathA);
@@ -1160,6 +1337,9 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInst, PWSTR pCmdLine, in
     icex.dwICC = ICC_TAB_CLASSES | ICC_LISTVIEW_CLASSES;
     InitCommonControlsEx(&icex);
 
+    Language user_lang = load_language();
+    lang_init(language_code(user_lang));
+
     const wchar_t CLASS_NAME[] = L"MangaDownloaderWndClass";
     HICON hIcon = LoadIconW(hInstance, MAKEINTRESOURCEW(IDI_APP_ICON));
     HICON hIconSm = (HICON)LoadImageW(hInstance, MAKEINTRESOURCEW(IDI_APP_ICON), IMAGE_ICON, 16, 16, LR_DEFAULTCOLOR);
@@ -1173,11 +1353,14 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInst, PWSTR pCmdLine, in
     wc.hbrBackground = (HBRUSH)(COLOR_BTNFACE + 1);
     RegisterClassW(&wc);
 
-    HWND hwnd = CreateWindowExW(0, CLASS_NAME, L"Manga Downloader",
+    HWND hwnd = CreateWindowExW(0, CLASS_NAME, _TW("str_app_title"),
                                 WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX,
                                 CW_USEDEFAULT, CW_USEDEFAULT, 740, 675,
                                 NULL, NULL, hInstance, NULL);
-    if (hwnd == NULL) return 0;
+    if (hwnd == NULL) {
+        lang_free();
+        return 0;
+    }
 
     SendMessageW(hwnd, WM_SETICON, ICON_BIG, (LPARAM)hIcon);
     SendMessageW(hwnd, WM_SETICON, ICON_SMALL, (LPARAM)hIconSm);
@@ -1195,5 +1378,6 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInst, PWSTR pCmdLine, in
     }
 
     curl_global_cleanup();
+    lang_free();
     return (int)msg.wParam;
 }
